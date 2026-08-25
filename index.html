@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexo Presenter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700;800&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin></script>
+
+<style>
+/* ── TOKENS ─────────────────────────────────── */
+:root {
+  --ink:      #0D1B3E;
+  --blue:     #1B4FD8;
+  --blue-h:   #2B5FF8;
+  --gold:     #C8961E;
+  --green:    #16A34A;
+  --red:      #DC2626;
+  --paper:    #F7F3EB;
+  --paper-2:  #EDE9DF;
+  --muted:    #64748B;
+  --muted-2:  #94A3B8;
+  --border:   rgba(13,27,62,.13);
+  --glass:    rgba(255,255,255,.08);
+  --glass-b:  rgba(255,255,255,.18);
+}
+
+/* ── BASE ─────────────────────────────────────*/
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#0A1228;font-family:'Inter',system-ui,sans-serif}
+
+/* ── UPLOAD SCREEN ────────────────────────────*/
+#upload-screen {
+  position:fixed;inset:0;
+  background:#0A1228;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:0;z-index:100;
+  transition:opacity .4s ease;
+}
+#upload-screen.hidden{opacity:0;pointer-events:none}
+
+.us-brand {
+  font-family:'DM Serif Display',serif;
+  font-size:clamp(20px,3vw,32px);
+  color:#fff;
+  letter-spacing:-.02em;
+  margin-bottom:clamp(32px,5vh,56px);
+}
+.us-brand span{color:var(--blue)}
+
+.us-zone {
+  width:clamp(280px,55vw,540px);
+  border:2px dashed rgba(255,255,255,.18);
+  padding:clamp(40px,6vh,64px) 32px;
+  display:flex;flex-direction:column;align-items:center;gap:16px;
+  cursor:pointer;
+  transition:border-color .2s, background .2s;
+  position:relative;
+}
+.us-zone:hover,.us-zone.drag-over{
+  border-color:var(--blue);
+  background:rgba(27,79,216,.06);
+}
+.us-zone input[type=file]{
+  position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;
+}
+.us-icon {
+  width:56px;height:56px;
+  border:2px solid rgba(255,255,255,.25);
+  border-radius:50%;
+  display:grid;place-items:center;
+  color:rgba(255,255,255,.6);font-size:22px;
+}
+.us-label{font-size:15px;color:rgba(255,255,255,.55);text-align:center;line-height:1.5}
+.us-label strong{color:#fff;display:block;font-size:17px;margin-bottom:4px}
+.us-hint{font-size:11px;letter-spacing:.1em;color:rgba(255,255,255,.25);text-transform:uppercase}
+
+/* ── VIEWER SCREEN ────────────────────────────*/
+#viewer-screen {
+  position:fixed;inset:0;
+  background:#0A1228;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;
+  transition:opacity .5s ease;
+}
+#viewer-screen.active{opacity:1;pointer-events:auto}
+
+#pdf-canvas {
+  display:block;
+  max-width:100vw;
+  max-height:100vh;
+  object-fit:contain;
+  transition:opacity .3s ease;
+}
+#pdf-canvas.fade{opacity:0}
+
+/* Laser canvas sits on top of everything in viewer */
+#laser-canvas {
+  position:fixed;inset:0;
+  pointer-events:none;
+  z-index:50;
+}
+body.laser-active #laser-canvas{pointer-events:none}
+
+/* ── PROGRESS BAR ─────────────────────────────*/
+#progress {
+  position:fixed;top:0;left:0;height:3px;
+  background:var(--blue);
+  transition:width .45s cubic-bezier(.4,0,.2,1);
+  z-index:90;
+}
+
+/* ── NAVIGATION ───────────────────────────────*/
+#nav {
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:8px;
+  background:rgba(10,18,40,.72);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:40px;
+  padding:6px 8px;
+  backdrop-filter:blur(16px);
+  z-index:80;
+  opacity:0;
+  transition:opacity .3s ease;
+}
+#viewer-screen.active #nav{opacity:1}
+
+.nav-btn {
+  width:36px;height:36px;border-radius:50%;border:none;
+  background:transparent;
+  color:rgba(255,255,255,.6);font-size:16px;cursor:pointer;
+  display:grid;place-items:center;
+  transition:all .15s ease;
+}
+.nav-btn:hover{background:var(--glass-b);color:#fff}
+.nav-btn:disabled{opacity:.25;cursor:not-allowed}
+.nav-btn.active-btn{background:var(--blue);color:#fff}
+.nav-btn svg{width:16px;height:16px;fill:currentColor}
+
+#slide-counter {
+  font-size:11px;letter-spacing:.14em;
+  color:rgba(255,255,255,.4);
+  padding:0 6px;font-variant-numeric:tabular-nums;
+  min-width:52px;text-align:center;
+}
+
+.nav-divider{width:1px;height:20px;background:rgba(255,255,255,.1);margin:0 2px}
+
+/* ── CONTRACT PANEL ───────────────────────────*/
+#contract-panel {
+  position:fixed;inset:0;
+  background:var(--paper);
+  overflow-y:auto;
+  z-index:70;
+  opacity:0;pointer-events:none;
+  transform:translateY(24px);
+  transition:opacity .4s ease, transform .4s ease;
+  padding:clamp(28px,4vh,52px) clamp(24px,5vw,64px);
+}
+#contract-panel.open{opacity:1;pointer-events:auto;transform:translateY(0)}
+
+.cp-top {
+  display:flex;align-items:flex-start;justify-content:space-between;
+  margin-bottom:clamp(24px,3vh,36px);
+}
+.cp-brand {
+  font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;
+}
+.cp-brand strong{display:block;font-family:'DM Serif Display',serif;
+  font-size:clamp(22px,3vw,34px);color:var(--ink);letter-spacing:-.02em;
+  text-transform:none;font-weight:400;margin-top:4px}
+.cp-brand em{color:var(--blue);font-style:italic}
+
+.cp-back {
+  border:none;background:none;cursor:pointer;
+  color:var(--muted);font-size:12px;letter-spacing:.08em;
+  display:flex;align-items:center;gap:6px;font-family:inherit;
+  padding:8px 0;
+  transition:color .15s;
+}
+.cp-back:hover{color:var(--ink)}
+.cp-back svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2}
+
+/* CNPJ fetch status */
+.cnpj-wrap{position:relative}
+.cnpj-status {
+  font-size:11px;margin-top:5px;min-height:16px;
+  color:var(--blue);letter-spacing:.02em;
+}
+.cnpj-status.err{color:var(--red)}
+.cnpj-status.ok{color:var(--green)}
+
+/* Form layout */
+.form-section-label {
+  font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+  font-weight:700;color:var(--muted);margin:22px 0 12px;
+}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid.g3{grid-template-columns:1fr 1fr 1fr}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg label{
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  font-weight:600;color:var(--muted);
+}
+.fg input,.fg select{
+  width:100%;padding:11px 14px;
+  border:1.5px solid var(--border);
+  background:#fff;
+  font-size:14px;color:var(--ink);
+  outline:none;
+  font-family:'Inter',system-ui,sans-serif;
+  transition:border-color .18s,box-shadow .18s;
+  border-radius:0;
+  -webkit-appearance:none;
+}
+.fg input:focus,.fg select:focus{
+  border-color:var(--blue);
+  box-shadow:0 0 0 3px rgba(27,79,216,.1);
+}
+.fg input:read-only{background:var(--paper-2);color:var(--muted);cursor:default}
+.fg input::placeholder{color:var(--muted-2)}
+
+/* Plan cards */
+.plans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0 20px}
+.plan-card {
+  border:2px solid var(--border);
+  padding:16px 14px;cursor:pointer;
+  background:#fff;position:relative;
+  transition:border-color .18s,box-shadow .18s;
+}
+.plan-card:hover{border-color:var(--blue)}
+.plan-card.selected{
+  border-color:var(--blue);
+  box-shadow:0 0 0 3px rgba(27,79,216,.1);
+}
+.plan-card.popular::before{
+  content:'Mais escolhido';
+  position:absolute;top:-10px;left:12px;
+  background:var(--gold);color:#fff;
+  font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:700;padding:3px 10px;
+}
+.plan-card input[type=radio]{position:absolute;opacity:0;pointer-events:none}
+.plan-name{font-weight:700;font-size:14px;color:var(--ink);display:block;margin-bottom:6px}
+.plan-price{
+  font-weight:800;font-size:24px;color:var(--blue);
+  font-variant-numeric:tabular-nums;
+  line-height:1;
+}
+.plan-price sub{font-size:.45em;color:var(--muted);font-weight:400;vertical-align:baseline}
+
+/* Contract CTA */
+#btn-gerar {
+  width:100%;padding:15px;margin-top:16px;
+  background:var(--ink);color:#fff;
+  border:none;cursor:pointer;font-size:15px;font-weight:700;
+  letter-spacing:.03em;font-family:'Inter',system-ui,sans-serif;
+  transition:background .18s;
+}
+#btn-gerar:hover:not(:disabled){background:var(--blue)}
+#btn-gerar:disabled{background:#CBD5E1;cursor:not-allowed;color:#94A3B8}
+#btn-gerar.success{background:var(--green)}
+.btn-sub{
+  text-align:center;font-size:11px;color:var(--muted);
+  margin-top:10px;letter-spacing:.02em;
+}
+
+/* ── TOAST ────────────────────────────────────*/
+#toast {
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(12px);
+  background:var(--ink);color:#fff;
+  padding:10px 20px;font-size:13px;font-weight:500;
+  border-radius:2px;z-index:200;
+  opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;
+  white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── RESPONSIVE ───────────────────────────────*/
+@media(max-width:640px){
+  .form-grid,.form-grid.g3{grid-template-columns:1fr}
+  .plans-grid{grid-template-columns:1fr}
+  .cp-top{flex-direction:column;gap:16px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ UPLOAD SCREEN ═══════════════ -->
+<div id="upload-screen">
+  <div class="us-brand">Nexo <span>Presenter</span></div>
+  <div class="us-zone" id="drop-zone">
+    <input type="file" id="file-input" accept=".pdf" aria-label="Selecionar PDF">
+    <div class="us-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="24" height="24">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="13" x2="12" y2="19"/><polyline points="9 16 12 13 15 16"/>
+      </svg>
+    </div>
+    <div class="us-label">
+      <strong>Arraste seu PDF aqui</strong>
+      ou clique para selecionar
+    </div>
+    <div class="us-hint">Apresentação comercial</div>
+  </div>
+</div>
+
+<!-- ═══════════════ VIEWER SCREEN ═══════════════ -->
+<div id="viewer-screen">
+  <canvas id="pdf-canvas"></canvas>
+  <canvas id="laser-canvas"></canvas>
+
+  <div id="progress"></div>
+
+  <div id="nav">
+    <!-- Voltar slides -->
+    <button class="nav-btn" id="btn-prev" title="Anterior (←)" disabled>
+      <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+
+    <span id="slide-counter">1 / 1</span>
+
+    <!-- Próximo -->
+    <button class="nav-btn" id="btn-next" title="Próximo (→)">
+      <svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+
+    <div class="nav-divider"></div>
+
+    <!-- Laser toggle -->
+    <button class="nav-btn" id="btn-laser" title="Ponteiro Laser (L)" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3" fill="#FF2222" stroke="#FF2222"/>
+        <line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
+        <line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
+        <line x1="4.93" y1="4.93" x2="7.05" y2="7.05"/>
+        <line x1="16.95" y1="16.95" x2="19.07" y2="19.07"/>
+        <line x1="4.93" y1="19.07" x2="7.05" y2="16.95"/>
+        <line x1="16.95" y1="7.05" x2="19.07" y2="4.93"/>
+      </svg>
+    </button>
+
+    <!-- Fullscreen -->
+    <button class="nav-btn" id="btn-fs" title="Tela cheia (F)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/>
+      </svg>
+    </button>
+
+    <!-- Contrato -->
+    <div class="nav-divider"></div>
+    <button class="nav-btn" id="btn-contract" title="Abrir Contrato (C)" style="font-size:13px;font-weight:700;color:rgba(255,255,255,.7);width:auto;padding:0 12px;border-radius:20px;gap:6px;font-family:inherit">
+      Contrato
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════ CONTRACT PANEL ═══════════════ -->
+<div id="contract-panel">
+  <div class="cp-top">
+    <div class="cp-brand">
+      Nexo Consultoria &amp; Growth
+      <strong>Fechar o <em>contrato agora.</em></strong>
+    </div>
+    <button class="cp-back" id="btn-back-slides">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      Voltar aos slides
+    </button>
+  </div>
+
+  <!-- CNPJ -->
+  <div class="form-section-label">Dados do Cliente</div>
+  <div class="form-grid">
+    <div class="fg cnpj-wrap">
+      <label for="f-cnpj">CNPJ do Cliente</label>
+      <input type="text" id="f-cnpj" placeholder="00.000.000/0001-00" maxlength="18" autocomplete="off">
+      <div class="cnpj-status" id="cnpj-status"></div>
+    </div>
+    <div class="fg">
+      <label for="f-razao">Razão Social</label>
+      <input type="text" id="f-razao" placeholder="Preenchido automaticamente">
+    </div>
+    <div class="fg">
+      <label for="f-fantasia">Nome Fantasia</label>
+      <input type="text" id="f-fantasia" placeholder="Preenchido automaticamente">
+    </div>
+    <div class="fg">
+      <label for="f-rep">Representante Legal</label>
+      <input type="text" id="f-rep" placeholder="Nome completo do sócio">
+    </div>
+    <div class="fg">
+      <label for="f-email">E-mail</label>
+      <input type="email" id="f-email" placeholder="contato@empresa.com.br">
+    </div>
+    <div class="fg">
+      <label for="f-whats">WhatsApp</label>
+      <input type="text" id="f-whats" placeholder="(62) 99999-9999">
+    </div>
+  </div>
+
+  <div class="fg" style="margin-top:14px">
+    <label for="f-end">Endereço completo</label>
+    <input type="text" id="f-end" placeholder="Preenchido automaticamente pelo CNPJ">
+  </div>
+
+  <!-- Plans -->
+  <div class="form-section-label">Plano Contratado</div>
+  <div class="plans-grid">
+    <label class="plan-card" id="pc-base">
+      <input type="radio" name="plan" value="BASE" data-price="1.997,90">
+      <span class="plan-name">BASE</span>
+      <div class="plan-price">R$1.997<sub>/mês</sub></div>
+    </label>
+    <label class="plan-card popular selected" id="pc-escale">
+      <input type="radio" name="plan" value="ESCALE" data-price="3.497,90" checked>
+      <span class="plan-name">ESCALE</span>
+      <div class="plan-price">R$3.497<sub>/mês</sub></div>
+    </label>
+    <label class="plan-card" id="pc-growth">
+      <input type="radio" name="plan" value="GROWTH" data-price="5.497,90">
+      <span class="plan-name">GROWTH</span>
+      <div class="plan-price">R$5.497<sub>/mês</sub></div>
+    </label>
+  </div>
+
+  <!-- Dates -->
+  <div class="form-section-label">Vigência e Pagamento</div>
+  <div class="form-grid">
+    <div class="fg">
+      <label for="f-inicio">Data de início</label>
+      <input type="date" id="f-inicio">
+    </div>
+    <div class="fg">
+      <label for="f-venc">Vencimento mensal (dia)</label>
+      <input type="number" id="f-venc" placeholder="Ex: 10" min="1" max="28">
+    </div>
+  </div>
+
+  <button id="btn-gerar" disabled>Gerar Contrato PDF</button>
+  <p class="btn-sub">O PDF será baixado automaticamente após a geração</p>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ── PDF.JS SETUP ──────────────────────────────────────
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── STATE ─────────────────────────────────────────────
+let pdfDoc = null;
+let curPage = 1;
+let totalPages = 0;
+let rendering = false;
+let laserActive = false;
+let lastMouse = { x: -999, y: -999 };
+let laserHideTimer = null;
+let laserVisible = false;
+
+// ── ELEMENTS ──────────────────────────────────────────
+const uploadScreen   = document.getElementById('upload-screen');
+const viewerScreen   = document.getElementById('viewer-screen');
+const pdfCanvas      = document.getElementById('pdf-canvas');
+const laserCanvas    = document.getElementById('laser-canvas');
+const progressBar    = document.getElementById('progress');
+const slideCounter   = document.getElementById('slide-counter');
+const contractPanel  = document.getElementById('contract-panel');
+const btnPrev        = document.getElementById('btn-prev');
+const btnNext        = document.getElementById('btn-next');
+const btnLaser       = document.getElementById('btn-laser');
+const btnFs          = document.getElementById('btn-fs');
+const btnContract    = document.getElementById('btn-contract');
+const btnBackSlides  = document.getElementById('btn-back-slides');
+const toast          = document.getElementById('toast');
+const pdfCtx         = pdfCanvas.getContext('2d');
+const laserCtx       = laserCanvas.getContext('2d');
+
+// ── UPLOAD / DRAG ─────────────────────────────────────
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type === 'application/pdf') loadPDF(f);
+});
+fileInput.addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (f) loadPDF(f);
+});
+
+async function loadPDF(file) {
+  const buffer = await file.arrayBuffer();
+  pdfDoc = await pdfjsLib.getDocument({ data: buffer }).promise;
+  totalPages = pdfDoc.numPages;
+  curPage = 1;
+
+  uploadScreen.classList.add('hidden');
+  setTimeout(() => { uploadScreen.style.display = 'none'; }, 420);
+  viewerScreen.classList.add('active');
+
+  await renderPage(curPage);
+  resizeLaserCanvas();
+}
+
+// ── RENDER PAGE ───────────────────────────────────────
+async function renderPage(num) {
+  if (rendering) return;
+  rendering = true;
+  pdfCanvas.classList.add('fade');
+
+  const page = await pdfDoc.getPage(num);
+  const dpr = window.devicePixelRatio || 1;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  const viewport = page.getViewport({ scale: 1 });
+  const scaleW = vw / viewport.width;
+  const scaleH = vh / viewport.height;
+  const scale = Math.min(scaleW, scaleH) * dpr;
+
+  const vp = page.getViewport({ scale });
+  pdfCanvas.width  = vp.width;
+  pdfCanvas.height = vp.height;
+  pdfCanvas.style.width  = (vp.width  / dpr) + 'px';
+  pdfCanvas.style.height = (vp.height / dpr) + 'px';
+
+  await page.render({ canvasContext: pdfCtx, viewport: vp }).promise;
+
+  setTimeout(() => { pdfCanvas.classList.remove('fade'); }, 20);
+  rendering = false;
+
+  updateNav();
+}
+
+function updateNav() {
+  btnPrev.disabled = curPage <= 1;
+  btnNext.disabled = curPage >= totalPages && contractPanel.classList.contains('open');
+  slideCounter.textContent = `${curPage} / ${totalPages}`;
+  progressBar.style.width = `${(curPage / totalPages) * 100}%`;
+}
+
+// ── NAVIGATION ────────────────────────────────────────
+async function goNext() {
+  if (contractPanel.classList.contains('open')) return;
+  if (curPage < totalPages) {
+    curPage++;
+    await renderPage(curPage);
+  } else {
+    openContract();
+  }
+}
+
+async function goPrev() {
+  if (contractPanel.classList.contains('open')) {
+    closeContract();
+    return;
+  }
+  if (curPage > 1) {
+    curPage--;
+    await renderPage(curPage);
+  }
+}
+
+btnNext.addEventListener('click', goNext);
+btnPrev.addEventListener('click', goPrev);
+btnContract.addEventListener('click', openContract);
+btnBackSlides.addEventListener('click', closeContract);
+
+function openContract() {
+  contractPanel.classList.add('open');
+  document.body.style.overflow = '';
+  updateNav();
+}
+function closeContract() {
+  contractPanel.classList.remove('open');
+  updateNav();
+}
+
+// ── KEYBOARD ──────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+  switch (e.key) {
+    case 'ArrowRight': case 'ArrowDown': case ' ': e.preventDefault(); goNext(); break;
+    case 'ArrowLeft':  case 'ArrowUp':              goPrev(); break;
+    case 'l': case 'L': toggleLaser(); break;
+    case 'f': case 'F': toggleFullscreen(); break;
+    case 'c': case 'C': contractPanel.classList.contains('open') ? closeContract() : openContract(); break;
+    case 'Escape':
+      if (contractPanel.classList.contains('open')) closeContract();
+      break;
+  }
+});
+
+// ── FULLSCREEN ────────────────────────────────────────
+btnFs.addEventListener('click', toggleFullscreen);
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen();
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const isFs = !!document.fullscreenElement;
+  btnFs.classList.toggle('active-btn', isFs);
+  if (pdfDoc) renderPage(curPage);
+});
+
+window.addEventListener('resize', () => {
+  resizeLaserCanvas();
+  if (pdfDoc && !contractPanel.classList.contains('open')) renderPage(curPage);
+});
+
+// ── LASER POINTER ─────────────────────────────────────
+function toggleLaser() {
+  laserActive = !laserActive;
+  btnLaser.classList.toggle('active-btn', laserActive);
+  btnLaser.setAttribute('aria-pressed', laserActive);
+  if (!laserActive) clearLaser();
+}
+
+function resizeLaserCanvas() {
+  laserCanvas.width  = window.innerWidth;
+  laserCanvas.height = window.innerHeight;
+}
+
+function drawLaser(x, y) {
+  laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height);
+  if (!laserActive || !laserVisible) return;
+
+  // Outer diffuse glow
+  const g1 = laserCtx.createRadialGradient(x, y, 0, x, y, 40);
+  g1.addColorStop(0,   'rgba(255, 30, 30, 0.45)');
+  g1.addColorStop(0.4, 'rgba(255, 30, 30, 0.15)');
+  g1.addColorStop(1,   'rgba(255, 30, 30, 0)');
+  laserCtx.fillStyle = g1;
+  laserCtx.beginPath();
+  laserCtx.arc(x, y, 40, 0, Math.PI * 2);
+  laserCtx.fill();
+
+  // Mid ring
+  const g2 = laserCtx.createRadialGradient(x, y, 2, x, y, 12);
+  g2.addColorStop(0,   'rgba(255, 60, 60, 0.9)');
+  g2.addColorStop(1,   'rgba(200, 0, 0, 0)');
+  laserCtx.fillStyle = g2;
+  laserCtx.beginPath();
+  laserCtx.arc(x, y, 12, 0, Math.PI * 2);
+  laserCtx.fill();
+
+  // Core dot
+  laserCtx.fillStyle = '#FF2020';
+  laserCtx.beginPath();
+  laserCtx.arc(x, y, 5, 0, Math.PI * 2);
+  laserCtx.fill();
+
+  // Bright white center
+  laserCtx.fillStyle = '#FFFFFF';
+  laserCtx.beginPath();
+  laserCtx.arc(x, y, 1.8, 0, Math.PI * 2);
+  laserCtx.fill();
+}
+
+function clearLaser() {
+  laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height);
+}
+
+document.addEventListener('mousemove', e => {
+  if (!laserActive) return;
+  lastMouse = { x: e.clientX, y: e.clientY };
+  laserVisible = true;
+  drawLaser(e.clientX, e.clientY);
+
+  clearTimeout(laserHideTimer);
+  laserHideTimer = setTimeout(() => {
+    laserVisible = false;
+    clearLaser();
+  }, 2200);
+});
+
+// ── CNPJ MASK & FETCH ─────────────────────────────────
+const fCnpj   = document.getElementById('f-cnpj');
+const cnpjSt  = document.getElementById('cnpj-status');
+const fRazao  = document.getElementById('f-razao');
+const fFanta  = document.getElementById('f-fantasia');
+const fRep    = document.getElementById('f-rep');
+const fEnd    = document.getElementById('f-end');
+
+function maskCNPJ(v) {
+  v = v.replace(/\D/g, '').slice(0, 14);
+  if (v.length > 12) v = v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5,8)+'/'+v.slice(8,12)+'-'+v.slice(12);
+  else if (v.length > 8) v = v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5,8)+'/'+v.slice(8);
+  else if (v.length > 5) v = v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5);
+  else if (v.length > 2) v = v.slice(0,2)+'.'+v.slice(2);
+  return v;
+}
+
+function validCNPJ(c) {
+  c = c.replace(/\D/g, '');
+  if (c.length !== 14 || /^(\d)\1+$/.test(c)) return false;
+  const calc = (n) => {
+    let s = 0, w = n === 1 ? [5,4,3,2,9,8,7,6,5,4,3,2] : [6,5,4,3,2,9,8,7,6,5,4,3,2];
+    for (let i = 0; i < w.length; i++) s += parseInt(c[i]) * w[i];
+    const r = s % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  return calc(1) === parseInt(c[12]) && calc(2) === parseInt(c[13]);
+}
+
+let cnpjFetchTimeout = null;
+
+fCnpj.addEventListener('input', e => {
+  fCnpj.value = maskCNPJ(e.target.value);
+  clearTimeout(cnpjFetchTimeout);
+  const raw = fCnpj.value.replace(/\D/g, '');
+
+  if (raw.length === 14) {
+    if (!validCNPJ(raw)) {
+      setCnpjStatus('err', 'CNPJ inválido — verifique os dígitos');
+      return;
+    }
+    setCnpjStatus('', 'Consultando Receita Federal…');
+    cnpjFetchTimeout = setTimeout(() => fetchCNPJ(raw), 500);
+  } else {
+    setCnpjStatus('', '');
+  }
+});
+
+function setCnpjStatus(type, msg) {
+  cnpjSt.textContent = msg;
+  cnpjSt.className = 'cnpj-status' + (type ? ' ' + type : '');
+}
+
+async function fetchCNPJ(cnpj) {
+  try {
+    const r = await fetch(`/api/cnpj?cnpj=${cnpj}`);
+    const d = await r.json();
+
+    if (!r.ok || d.error) {
+      setCnpjStatus('err', d.error || 'Não encontrado na Receita Federal');
+      return;
+    }
+
+    fRazao.value = d.razao_social || '';
+    fFanta.value = d.nome_fantasia || '';
+
+    // Build address
+    const addr = [d.logradouro, d.numero, d.complemento, d.bairro, d.municipio, d.uf]
+      .filter(Boolean).join(', ');
+    fEnd.value = addr || d.endereco_completo || '';
+
+    // Pre-fill representative from QSA (first socio-administrador)
+    if (d.qsa && d.qsa.length > 0) {
+      const adm = d.qsa.find(q => /adm|sócio/i.test(q.qualificacao_socio || q.qual || '')) || d.qsa[0];
+      const name = adm.nome_socio || adm.nome || '';
+      if (name && !fRep.value) fRep.value = name;
+    }
+
+    setCnpjStatus('ok', `✓ ${d.razao_social}`);
+    validateForm();
+  } catch (_) {
+    setCnpjStatus('err', 'Erro ao consultar. Verifique a conexão.');
+  }
+}
+
+// ── PLAN SELECTION ────────────────────────────────────
+document.querySelectorAll('.plan-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    card.querySelector('input').checked = true;
+    validateForm();
+  });
+});
+
+// ── FORM VALIDATION ───────────────────────────────────
+const formFields = ['f-razao', 'f-rep', 'f-inicio', 'f-venc'];
+formFields.forEach(id => {
+  document.getElementById(id).addEventListener('input', validateForm);
+});
+
+function validateForm() {
+  const razao   = fRazao.value.trim();
+  const rep     = document.getElementById('f-rep').value.trim();
+  const inicio  = document.getElementById('f-inicio').value;
+  const venc    = document.getElementById('f-venc').value;
+  const planOk  = !!document.querySelector('input[name="plan"]:checked');
+  const cnpjOk  = cnpjSt.classList.contains('ok');
+
+  const ok = razao && rep && inicio && venc && planOk;
+  document.getElementById('btn-gerar').disabled = !ok;
+}
+
+// ── CONTRACT PDF GENERATION ───────────────────────────
+document.getElementById('btn-gerar').addEventListener('click', gerarPDF);
+
+async function gerarPDF() {
+  const btn = document.getElementById('btn-gerar');
+  btn.disabled = true;
+  btn.textContent = 'Gerando…';
+
+  const planRadio = document.querySelector('input[name="plan"]:checked');
+  const plano     = planRadio ? planRadio.value : 'ESCALE';
+  const preco     = planRadio ? planRadio.dataset.price : '3.497,90';
+
+  const cliente = {
+    cnpj:    fCnpj.value,
+    razao:   fRazao.value.trim(),
+    fantasia: fFanta.value.trim(),
+    rep:     document.getElementById('f-rep').value.trim(),
+    email:   document.getElementById('f-email').value.trim(),
+    whats:   document.getElementById('f-whats').value.trim(),
+    end:     fEnd.value.trim(),
+    inicio:  document.getElementById('f-inicio').value,
+    venc:    document.getElementById('f-venc').value,
+    plano,
+    preco,
+  };
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    const W = 210, H = 297;
+    const ML = 22, MR = 22, MT = 22;
+    const TW = W - ML - MR;
+
+    // Color helpers
+    const navy  = () => doc.setTextColor(13, 27, 62);
+    const blue  = () => doc.setTextColor(27, 79, 216);
+    const muted = () => doc.setTextColor(100, 116, 135);
+    const white = () => doc.setTextColor(255, 255, 255);
+    const black = () => doc.setTextColor(30, 30, 30);
+
+    // ── PAGE 1: COVER ──────────────────────────────
+    // Header band
+    doc.setFillColor(13, 27, 62);
+    doc.rect(0, 0, W, 52, 'F');
+
+    // Gold accent line
+    doc.setFillColor(200, 150, 30);
+    doc.rect(0, 52, W, 2, 'F');
+
+    // Brand name
+    white();
+    doc.setFontSize(9).setFont('helvetica','bold');
+    doc.text('NEXO CONSULTORIA & GROWTH', ML, 24);
+
+    doc.setFontSize(22).setFont('helvetica','bold');
+    doc.text('Growth Engine®', ML, 40);
+
+    // Contract label
+    doc.setFillColor(27, 79, 216);
+    doc.rect(ML, 60, TW, 0.8, 'F');
+
+    navy(); doc.setFontSize(10).setFont('helvetica','bold');
+    doc.text('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', ML, 74);
+    navy(); doc.setFontSize(8).setFont('helvetica','normal');
+    doc.text('Consultoria em Marketing Digital e Aceleração de Crescimento Empresarial', ML, 81);
+
+    const dateStr = formatDate(cliente.inicio);
+    muted(); doc.setFontSize(8);
+    doc.text(`Data de emissão: ${today()}`, ML, 91);
+
+    // PARTIES block
+    doc.setFillColor(247, 243, 235);
+    doc.rect(ML, 100, TW, 80, 'F');
+
+    navy(); doc.setFontSize(8).setFont('helvetica','bold');
+    doc.text('CONTRATANTE', ML + 6, 111);
+
+    black(); doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.text(cliente.razao, ML + 6, 119);
+    doc.setFontSize(8);
+    muted();
+    doc.text(`CNPJ: ${cliente.cnpj}`, ML + 6, 126);
+    if (cliente.end) doc.text(cliente.end, ML + 6, 133, { maxWidth: TW - 12 });
+    black();
+    doc.text(`Representante: ${cliente.rep}`, ML + 6, 143);
+    if (cliente.email) doc.text(`E-mail: ${cliente.email}`, ML + 6, 149);
+    if (cliente.whats) doc.text(`WhatsApp: ${cliente.whats}`, ML + 6, 155);
+
+    // Divider
+    doc.setFillColor(200, 150, 30);
+    doc.rect(ML + 6, 162, TW - 12, 0.5, 'F');
+
+    navy(); doc.setFont('helvetica','bold').setFontSize(8);
+    doc.text('CONTRATADA', ML + 6, 170);
+
+    black(); doc.setFont('helvetica','normal').setFontSize(9);
+    doc.text('NEXO CONSULTORIA LTDA', ML + 6, 178);
+    muted(); doc.setFontSize(8);
+    doc.text('Goiânia – GO  |  contato@nexo.com.br', ML + 6, 185);
+
+    // Plan highlight box
+    doc.setFillColor(13, 27, 62);
+    doc.rect(ML, 192, TW, 34, 'F');
+
+    white(); doc.setFontSize(8).setFont('helvetica','bold');
+    doc.text('PLANO CONTRATADO', ML + 6, 202);
+
+    doc.setFontSize(18).setFont('helvetica','bold');
+    doc.text(`Growth Engine® ${cliente.plano}`, ML + 6, 213);
+
+    doc.setFontSize(10);
+    doc.setTextColor(200, 150, 30);
+    doc.text(`R$ ${cliente.preco}/mês`, ML + 6, 221);
+
+    white(); doc.setFontSize(8).setFont('helvetica','normal');
+    doc.text(`Vigência: 12 meses   |   Início: ${dateStr}   |   Venc. dia ${cliente.venc} de cada mês`, ML + 6, 228);
+
+    // Footer p1
+    pageFooter(doc, W, H, ML, 1);
+
+    // ── PAGE 2: OBJECT & SCOPE ─────────────────────
+    doc.addPage();
+    pageHeader(doc, W, ML, MR, 'Objeto e Escopo de Serviços');
+
+    let y = 52;
+    const addSection = (title, body) => {
+      navy(); doc.setFontSize(9).setFont('helvetica','bold');
+      doc.text(title, ML, y); y += 6;
+      black(); doc.setFontSize(8).setFont('helvetica','normal');
+      const lines = doc.splitTextToSize(body, TW);
+      doc.text(lines, ML, y); y += lines.length * 4.5 + 8;
+    };
+
+    addSection('1. OBJETO', `O presente contrato tem por objeto a prestação de serviços de consultoria especializada em marketing digital, tráfego pago, posicionamento de marca e aceleração de crescimento comercial, por meio da metodologia exclusiva Growth Engine®, no plano ${cliente.plano}, conforme descrito neste instrumento.`);
+
+    addSection('2. ESCOPO DE SERVIÇOS — PLANO ' + cliente.plano, scopeByPlan(cliente.plano));
+
+    addSection('3. PRAZO DE VIGÊNCIA', `O contrato terá duração de 12 (doze) meses, com início em ${dateStr} e encerramento automático ao final do período, podendo ser renovado mediante acordo entre as partes com antecedência mínima de 30 dias.`);
+
+    addSection('4. EXCLUSIVIDADE E CONFIDENCIALIDADE', 'A CONTRATADA compromete-se a manter sigilo absoluto sobre todas as informações estratégicas, comerciais, financeiras e operacionais da CONTRATANTE obtidas no decorrer deste contrato, conforme Lei Geral de Proteção de Dados (Lei nº 13.709/2018).');
+
+    addSection('5. PROPRIEDADE INTELECTUAL', 'Todos os materiais, estratégias e conteúdos criados pela CONTRATADA durante a vigência do contrato são de propriedade da CONTRATANTE após o pagamento integral de cada competência, exceto metodologias, frameworks e processos internos da CONTRATADA que são e permanecem de sua exclusiva propriedade intelectual.');
+
+    pageFooter(doc, W, H, ML, 2);
+
+    // ── PAGE 3: PAYMENT & OBLIGATIONS ─────────────
+    doc.addPage();
+    pageHeader(doc, W, ML, MR, 'Condições de Pagamento e Obrigações');
+    y = 52;
+
+    addSection('6. VALOR E FORMA DE PAGAMENTO', `O valor mensal dos serviços é de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}), com vencimento todo dia ${cliente.venc} (${ordinal(parseInt(cliente.venc))}) de cada mês, mediante PIX, transferência bancária ou boleto emitido pela CONTRATADA.\n\nO atraso no pagamento implica cobrança de multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.`);
+
+    addSection('7. OBRIGAÇÕES DA CONTRATADA', `• Alocar equipe multidisciplinar dedicada ao projeto
+• Cumprir cronograma de entregas previamente acordado
+• Apresentar relatórios mensais de resultados e desempenho (KPIs)
+• Disponibilizar atendimento via WhatsApp em horário comercial
+• Respeitar os valores e a identidade da marca da CONTRATANTE`);
+
+    addSection('8. OBRIGAÇÕES DA CONTRATANTE', `• Fornecer à CONTRATADA acesso a ferramentas, plataformas e informações necessárias
+• Aprovar ou solicitar revisões nos materiais em até 3 (três) dias úteis
+• Efetuar os pagamentos nos prazos acordados
+• Indicar um ponto focal responsável pela comunicação com a equipe NEXO
+• Respeitar o prazo mínimo de contrato`);
+
+    addSection('9. RESCISÃO', `Qualquer das partes pode rescindir este contrato mediante notificação por escrito com antecedência mínima de 30 (trinta) dias. Em caso de rescisão imotivada pela CONTRATANTE antes do término do prazo mínimo, fica devida multa equivalente a 30% do valor total restante do contrato. A rescisão por descumprimento de obrigações dará direito à parte prejudicada de exigir perdas e danos.`);
+
+    pageFooter(doc, W, H, ML, 3);
+
+    // ── PAGE 4: GENERAL TERMS & SIGNATURES ────────
+    doc.addPage();
+    pageHeader(doc, W, ML, MR, 'Disposições Gerais e Assinaturas');
+    y = 52;
+
+    addSection('10. LIMITAÇÃO DE RESPONSABILIDADE', 'A CONTRATADA não se responsabiliza por resultados que dependam exclusivamente de fatores externos ao seu controle, tais como sazonalidade do mercado, mudanças de algoritmos de plataformas de terceiros, crises econômicas ou inação da CONTRATANTE no cumprimento de suas obrigações.');
+
+    addSection('11. FORO', 'As partes elegem o foro da comarca de Goiânia – GO para dirimir quaisquer dúvidas ou litígios decorrentes do presente contrato, com renúncia expressa a qualquer outro foro, por mais privilegiado que seja.');
+
+    addSection('12. ACEITE E VALIDADE', 'O presente contrato, assinado eletronicamente pelas partes, tem plena validade jurídica nos termos da Lei nº 14.063/2020 e demais disposições legais aplicáveis. A assinatura eletrônica possui a mesma validade da assinatura manuscrita.');
+
+    // Signatures
+    y += 10;
+    doc.setFillColor(247, 243, 235);
+    doc.rect(ML, y, TW, 68, 'F');
+    y += 8;
+
+    navy(); doc.setFontSize(8).setFont('helvetica','bold');
+    doc.text(`Goiânia, ${today()}`, ML + TW/2, y, { align: 'center' });
+    y += 14;
+
+    // Left sig — client
+    const sigLeft = ML + TW/4;
+    const sigRight = ML + (3 * TW/4);
+    doc.setDrawColor(13, 27, 62); doc.setLineWidth(0.3);
+
+    doc.line(ML + 6, y, ML + 6 + TW/2 - 14, y);
+    navy(); doc.setFontSize(7).setFont('helvetica','bold');
+    doc.text('CONTRATANTE', ML + 6, y + 5);
+    black(); doc.setFont('helvetica','normal');
+    doc.text(cliente.razao, ML + 6, y + 10, { maxWidth: TW/2 - 14 });
+    doc.text(`CNPJ: ${cliente.cnpj}`, ML + 6, y + 16);
+    doc.text(`Rep.: ${cliente.rep}`, ML + 6, y + 22);
+
+    const sigRStart = ML + TW/2 + 8;
+    doc.line(sigRStart, y, sigRStart + TW/2 - 14, y);
+    navy(); doc.setFontSize(7).setFont('helvetica','bold');
+    doc.text('CONTRATADA', sigRStart, y + 5);
+    black(); doc.setFont('helvetica','normal');
+    doc.text('NEXO CONSULTORIA LTDA', sigRStart, y + 10);
+    doc.text('contato@nexo.com.br', sigRStart, y + 16);
+
+    y += 30;
+    muted(); doc.setFontSize(6.5);
+    doc.text('Este contrato foi gerado eletronicamente pelo Nexo Presenter · Growth Engine® · Nexo Consultoria & Growth', ML + TW/2, H - 18, { align: 'center' });
+
+    pageFooter(doc, W, H, ML, 4);
+
+    // ── SAVE ───────────────────────────────────────
+    const filename = `Contrato_GrowthEngine_${cliente.razao.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)}_${plano}.pdf`;
+    doc.save(filename);
+
+    btn.textContent = '✓ Contrato gerado!';
+    btn.classList.add('success');
+    showToast('Contrato PDF baixado com sucesso!');
+    setTimeout(() => {
+      btn.textContent = 'Gerar Contrato PDF';
+      btn.classList.remove('success');
+      btn.disabled = false;
+    }, 4000);
+
+  } catch (err) {
+    console.error(err);
+    btn.textContent = 'Gerar Contrato PDF';
+    btn.disabled = false;
+    showToast('Erro ao gerar PDF. Tente novamente.');
+  }
+}
+
+// ── PDF HELPERS ───────────────────────────────────────
+function pageHeader(doc, W, ML, MR, title) {
+  doc.setFillColor(13, 27, 62);
+  doc.rect(0, 0, W, 14, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(7).setFont('helvetica','bold');
+  doc.text('NEXO CONSULTORIA & GROWTH  ·  GROWTH ENGINE®', ML, 9.5);
+  doc.setTextColor(200,150,30);
+  doc.text(title.toUpperCase(), W - ML, 9.5, { align: 'right' });
+  doc.setFillColor(27, 79, 216);
+  doc.rect(0, 14, W, 1.5, 'F');
+}
+
+function pageFooter(doc, W, H, ML, num) {
+  doc.setFillColor(13, 27, 62);
+  doc.rect(0, H - 14, W, 14, 'F');
+  doc.setTextColor(255,255,255,0.4);
+  doc.setFontSize(6.5).setFont('helvetica','normal');
+  doc.setTextColor(100,120,160);
+  doc.text('Growth Engine® · Nexo Consultoria & Growth · Confidencial', ML, H - 6);
+  doc.text(`${num}`, W - ML, H - 6, { align: 'right' });
+}
+
+function today() {
+  const d = new Date();
+  return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+}
+
+function formatDate(isoStr) {
+  if (!isoStr) return '';
+  const [y,m,d] = isoStr.split('-');
+  const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  return `${parseInt(d)} de ${months[parseInt(m)-1]} de ${y}`;
+}
+
+function ordinal(n) {
+  return n + 'º';
+}
+
+function valorPorExtenso(preco) {
+  const map = { '1.997,90':'mil, novecentos e noventa e sete reais e noventa centavos', '3.497,90':'três mil, quatrocentos e noventa e sete reais e noventa centavos', '5.497,90':'cinco mil, quatrocentos e noventa e sete reais e noventa centavos' };
+  return map[preco] || preco;
+}
+
+function scopeByPlan(plano) {
+  const scopes = {
+    BASE: `• Gestão de 1 canal de tráfego pago (Google Ads ou Meta Ads)
+• Criação de até 4 peças criativas por mês
+• 1 reunião mensal de alinhamento e resultados
+• Relatório mensal de desempenho (KPIs)
+• Suporte via WhatsApp em horário comercial`,
+    ESCALE: `• Gestão de 2 canais de tráfego pago (Google Ads + Meta Ads)
+• Criação de até 10 peças criativas por mês
+• Estratégia de funil completo (topo, meio e fundo)
+• 2 reuniões mensais de alinhamento e resultados
+• Relatório quinzenal de desempenho (KPIs)
+• Otimização de landing pages e CRO básico
+• Suporte via WhatsApp em horário comercial`,
+    GROWTH: `• Gestão completa: Google Ads, Meta Ads e LinkedIn Ads
+• Criação ilimitada de peças criativas e vídeos curtos
+• Estratégia full-funnel + automações de marketing
+• Reuniões semanais de alinhamento e revisão de resultados
+• Dashboard em tempo real de performance
+• Otimização avançada de landing pages, CRO e SEO
+• Consultoria estratégica de posicionamento e branding
+• Suporte prioritário com canal exclusivo WhatsApp`
+  };
+  return scopes[plano] || scopes.ESCALE;
+}
+
+// ── TOAST ─────────────────────────────────────────────
+function showToast(msg, duration = 3000) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), duration);
+}
+
+// ── INIT ──────────────────────────────────────────────
+resizeLaserCanvas();
+// Set today as default inicio date
+document.getElementById('f-inicio').valueAsDate = new Date();
+</script>
+</body>
+</html>

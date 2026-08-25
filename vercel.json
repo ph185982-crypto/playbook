@@ -1,0 +1,9 @@
+{
+  "functions": {
+    "api/cnpj.js": { "runtime": "nodejs18.x" }
+  },
+  "rewrites": [
+    { "source": "/api/cnpj", "destination": "/api/cnpj" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

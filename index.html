@@ -828,190 +828,247 @@ async function gerarPDF() {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
     const W = 210, H = 297;
-    const ML = 22, MR = 22, MT = 22;
+    const ML = 20, MR = 20;
     const TW = W - ML - MR;
-
-    // Color helpers
-    const navy  = () => doc.setTextColor(13, 27, 62);
-    const blue  = () => doc.setTextColor(27, 79, 216);
-    const muted = () => doc.setTextColor(100, 116, 135);
-    const white = () => doc.setTextColor(255, 255, 255);
-    const black = () => doc.setTextColor(30, 30, 30);
-
-    // ── PAGE 1: COVER ──────────────────────────────
-    // Header band
-    doc.setFillColor(13, 27, 62);
-    doc.rect(0, 0, W, 52, 'F');
-
-    // Gold accent line
-    doc.setFillColor(200, 150, 30);
-    doc.rect(0, 52, W, 2, 'F');
-
-    // Brand name
-    white();
-    doc.setFontSize(9).setFont('helvetica','bold');
-    doc.text('NEXO CONSULTORIA & GROWTH', ML, 24);
-
-    doc.setFontSize(22).setFont('helvetica','bold');
-    doc.text('Growth Engine®', ML, 40);
-
-    // Contract label
-    doc.setFillColor(27, 79, 216);
-    doc.rect(ML, 60, TW, 0.8, 'F');
-
-    navy(); doc.setFontSize(10).setFont('helvetica','bold');
-    doc.text('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', ML, 74);
-    navy(); doc.setFontSize(8).setFont('helvetica','normal');
-    doc.text('Consultoria em Marketing Digital e Aceleração de Crescimento Empresarial', ML, 81);
-
     const dateStr = formatDate(cliente.inicio);
-    muted(); doc.setFontSize(8);
-    doc.text(`Data de emissão: ${today()}`, ML, 91);
 
-    // PARTIES block
-    doc.setFillColor(247, 243, 235);
-    doc.rect(ML, 100, TW, 80, 'F');
+    // ─ color shortcuts ─
+    const C = {
+      navy:  [13, 27, 62],
+      blue:  [27, 79, 216],
+      gold:  [200, 150, 30],
+      paper: [247, 243, 235],
+      paper2:[237, 233, 223],
+      muted: [100, 116, 135],
+      white: [255, 255, 255],
+      ink:   [22, 30, 55],
+      body:  [45, 50, 65],
+    };
+    const setFill = (c) => doc.setFillColor(...c);
+    const setTxt  = (c) => doc.setTextColor(...c);
+    const setDraw = (c) => doc.setDrawColor(...c);
 
-    navy(); doc.setFontSize(8).setFont('helvetica','bold');
-    doc.text('CONTRATANTE', ML + 6, 111);
+    // ══════════════════════════════════════════════
+    // PAGE 1 — CAPA
+    // ══════════════════════════════════════════════
 
-    black(); doc.setFont('helvetica','normal');
-    doc.setFontSize(9);
-    doc.text(cliente.razao, ML + 6, 119);
-    doc.setFontSize(8);
-    muted();
-    doc.text(`CNPJ: ${cliente.cnpj}`, ML + 6, 126);
-    if (cliente.end) doc.text(cliente.end, ML + 6, 133, { maxWidth: TW - 12 });
-    black();
-    doc.text(`Representante: ${cliente.rep}`, ML + 6, 143);
-    if (cliente.email) doc.text(`E-mail: ${cliente.email}`, ML + 6, 149);
-    if (cliente.whats) doc.text(`WhatsApp: ${cliente.whats}`, ML + 6, 155);
+    // Full navy header block
+    setFill(C.navy); doc.rect(0, 0, W, 80, 'F');
 
-    // Divider
-    doc.setFillColor(200, 150, 30);
-    doc.rect(ML + 6, 162, TW - 12, 0.5, 'F');
+    // Side gold accent strip (left edge)
+    setFill(C.gold); doc.rect(0, 0, 5, 80, 'F');
 
-    navy(); doc.setFont('helvetica','bold').setFontSize(8);
-    doc.text('CONTRATADA', ML + 6, 170);
+    // Brand eyebrow
+    setTxt(C.gold); doc.setFontSize(7).setFont('helvetica','bold');
+    doc.text('NEXO CONSULTORIA & GROWTH', ML + 2, 22);
 
-    black(); doc.setFont('helvetica','normal').setFontSize(9);
-    doc.text('NEXO CONSULTORIA LTDA', ML + 6, 178);
-    muted(); doc.setFontSize(8);
-    doc.text('Goiânia – GO  |  contato@nexo.com.br', ML + 6, 185);
+    // Main brand name
+    setTxt(C.white); doc.setFontSize(28).setFont('helvetica','bold');
+    doc.text('Growth Engine', ML + 2, 46);
+    // ® superscript
+    doc.setFontSize(13);
+    doc.text('®', ML + 2 + doc.getStringUnitWidth('Growth Engine') * 28 * 0.352778 + 1, 40);
 
-    // Plan highlight box
-    doc.setFillColor(13, 27, 62);
-    doc.rect(ML, 192, TW, 34, 'F');
+    // Tagline
+    setTxt([180, 195, 225]); doc.setFontSize(8).setFont('helvetica','normal');
+    doc.text('Consultoria em Marketing Digital & Aceleração de Crescimento', ML + 2, 58);
 
-    white(); doc.setFontSize(8).setFont('helvetica','bold');
-    doc.text('PLANO CONTRATADO', ML + 6, 202);
+    // Thin gold bottom accent on header
+    setFill(C.gold); doc.rect(0, 80, W, 2.5, 'F');
 
-    doc.setFontSize(18).setFont('helvetica','bold');
-    doc.text(`Growth Engine® ${cliente.plano}`, ML + 6, 213);
+    // Document type badge (white pill on paper bg)
+    setFill(C.paper); doc.rect(ML, 92, TW, 18, 'F');
+    setFill(C.blue); doc.rect(ML, 92, 3, 18, 'F');
+    setTxt(C.navy); doc.setFontSize(11).setFont('helvetica','bold');
+    doc.text('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', ML + 9, 101);
+    setTxt(C.muted); doc.setFontSize(7.5).setFont('helvetica','normal');
+    doc.text(`Emitido em ${today()}  ·  Vigência: 12 meses  ·  Início: ${dateStr}`, ML + 9, 107);
 
-    doc.setFontSize(10);
-    doc.setTextColor(200, 150, 30);
-    doc.text(`R$ ${cliente.preco}/mês`, ML + 6, 221);
+    // ── PARTIES ────────────────────────────────────
+    const cardY = 118, cardH = 72, colW = (TW - 6) / 2;
 
-    white(); doc.setFontSize(8).setFont('helvetica','normal');
-    doc.text(`Vigência: 12 meses   |   Início: ${dateStr}   |   Venc. dia ${cliente.venc} de cada mês`, ML + 6, 228);
+    // CONTRATANTE card
+    setFill(C.paper); doc.rect(ML, cardY, colW, cardH, 'F');
+    setFill(C.blue);  doc.rect(ML, cardY, colW, 1.5, 'F');
+    setTxt(C.blue); doc.setFontSize(6.5).setFont('helvetica','bold');
+    doc.text('CONTRATANTE', ML + 5, cardY + 8);
+    setTxt(C.ink); doc.setFontSize(9).setFont('helvetica','bold');
+    const razaoLines = doc.splitTextToSize(cliente.razao, colW - 10);
+    doc.text(razaoLines, ML + 5, cardY + 15);
+    const razaoH = razaoLines.length * 4.5;
+    setTxt(C.muted); doc.setFontSize(7.5).setFont('helvetica','normal');
+    let ry = cardY + 15 + razaoH + 2;
+    doc.text(`CNPJ: ${cliente.cnpj}`, ML + 5, ry); ry += 5.5;
+    if (cliente.rep)   { doc.text(`Rep.: ${cliente.rep}`, ML + 5, ry, {maxWidth: colW - 10}); ry += 5.5; }
+    if (cliente.email) { doc.text(`E-mail: ${cliente.email}`, ML + 5, ry, {maxWidth: colW - 10}); ry += 5.5; }
+    if (cliente.whats) { doc.text(`WhatsApp: ${cliente.whats}`, ML + 5, ry); }
+    if (cliente.end) {
+      setTxt(C.muted); doc.setFontSize(6.8);
+      const endLines = doc.splitTextToSize(cliente.end, colW - 10);
+      doc.text(endLines, ML + 5, cardY + cardH - 10);
+    }
 
-    // Footer p1
+    // CONTRATADA card
+    const cx2 = ML + colW + 6;
+    setFill(C.navy); doc.rect(cx2, cardY, colW, cardH, 'F');
+    setFill(C.gold); doc.rect(cx2, cardY, colW, 1.5, 'F');
+    setTxt(C.gold); doc.setFontSize(6.5).setFont('helvetica','bold');
+    doc.text('CONTRATADA', cx2 + 5, cardY + 8);
+    setTxt(C.white); doc.setFontSize(9).setFont('helvetica','bold');
+    doc.text('NEXO CONSULTORIA LTDA', cx2 + 5, cardY + 16);
+    setTxt([180, 195, 225]); doc.setFontSize(7.5).setFont('helvetica','normal');
+    doc.text('Goiânia – GO', cx2 + 5, cardY + 23);
+    doc.text('contato@nexo.com.br', cx2 + 5, cardY + 29);
+    // decorative "N" watermark
+    setTxt([27, 45, 90]); doc.setFontSize(52).setFont('helvetica','bold');
+    doc.text('N', cx2 + colW - 26, cardY + cardH - 6);
+
+    // ── PLAN HIGHLIGHT ──────────────────────────────
+    const planY = 198;
+    setFill(C.ink); doc.rect(ML, planY, TW, 46, 'F');
+
+    // Gold top accent
+    setFill(C.gold); doc.rect(ML, planY, TW, 1.5, 'F');
+
+    // Label
+    setTxt(C.gold); doc.setFontSize(7).setFont('helvetica','bold');
+    doc.text('PLANO CONTRATADO', ML + 8, planY + 10);
+
+    // Plan name big
+    setTxt(C.white); doc.setFontSize(22).setFont('helvetica','bold');
+    doc.text(`Growth Engine® ${cliente.plano}`, ML + 8, planY + 22);
+
+    // Price right-aligned
+    setTxt(C.gold); doc.setFontSize(16).setFont('helvetica','bold');
+    doc.text(`R$ ${cliente.preco}/mês`, W - MR - 2, planY + 22, { align: 'right' });
+
+    // Details row
+    setTxt([180, 195, 225]); doc.setFontSize(7.5).setFont('helvetica','normal');
+    doc.text(`Vigência: 12 meses  ·  Início: ${dateStr}  ·  Vencimento: todo dia ${cliente.venc}`, ML + 8, planY + 32);
+
+    // Validity note
+    setTxt([130, 150, 190]); doc.setFontSize(6.5);
+    doc.text('Documento com validade jurídica nos termos da Lei nº 14.063/2020', ML + 8, planY + 40);
+
     pageFooter(doc, W, H, ML, 1);
 
-    // ── PAGE 2: OBJECT & SCOPE ─────────────────────
-    doc.addPage();
-    pageHeader(doc, W, ML, MR, 'Objeto e Escopo de Serviços');
+    // ══════════════════════════════════════════════
+    // PAGES 2-4 — CLÁUSULAS
+    // ══════════════════════════════════════════════
 
-    let y = 52;
-    const addSection = (title, body) => {
-      navy(); doc.setFontSize(9).setFont('helvetica','bold');
-      doc.text(title, ML, y); y += 6;
-      black(); doc.setFontSize(8).setFont('helvetica','normal');
-      const lines = doc.splitTextToSize(body, TW);
-      doc.text(lines, ML, y); y += lines.length * 4.5 + 8;
+    let y = 0;
+
+    // section renderer with left-accent bar
+    const addSection = (num, title, body, isList) => {
+      if (y > H - 60) { doc.addPage(); pageHeader(doc, W, ML, MR); y = 30; }
+      // Number badge
+      setFill(C.blue); doc.rect(ML, y, 7, 7, 'F');
+      setTxt(C.white); doc.setFontSize(6.5).setFont('helvetica','bold');
+      doc.text(String(num), ML + 3.5, y + 5, { align: 'center' });
+      // Title
+      setTxt(C.navy); doc.setFontSize(9).setFont('helvetica','bold');
+      doc.text(title.toUpperCase(), ML + 10, y + 5.2);
+      y += 12;
+      // Body
+      setTxt(C.body); doc.setFontSize(8.2).setFont('helvetica','normal');
+      const lines = doc.splitTextToSize(body, TW - 2);
+      // page break inside body
+      for (const ln of lines) {
+        if (y > H - 28) { doc.addPage(); pageHeader(doc, W, ML, MR); y = 30; }
+        doc.text(ln, ML + 2, y);
+        y += isList ? 5.2 : 5;
+      }
+      y += 6;
     };
 
-    addSection('1. OBJETO', `O presente contrato tem por objeto a prestação de serviços de consultoria especializada em marketing digital, tráfego pago, posicionamento de marca e aceleração de crescimento comercial, por meio da metodologia exclusiva Growth Engine®, no plano ${cliente.plano}, conforme descrito neste instrumento.`);
+    // PAGE 2
+    doc.addPage(); pageHeader(doc, W, ML, MR); y = 30;
 
-    addSection('2. ESCOPO DE SERVIÇOS — PLANO ' + cliente.plano, scopeByPlan(cliente.plano));
+    addSection(1, 'Objeto do Contrato',
+      `O presente contrato tem por objeto a prestação de serviços de consultoria especializada em marketing digital, tráfego pago, posicionamento de marca e aceleração de crescimento comercial, por meio da metodologia exclusiva Growth Engine®, no plano ${cliente.plano}, conforme descrito neste instrumento.`);
 
-    addSection('3. PRAZO DE VIGÊNCIA', `O contrato terá duração de 12 (doze) meses, com início em ${dateStr} e encerramento automático ao final do período, podendo ser renovado mediante acordo entre as partes com antecedência mínima de 30 dias.`);
+    addSection(2, `Escopo de Serviços — Plano ${cliente.plano}`, scopeByPlan(cliente.plano), true);
 
-    addSection('4. EXCLUSIVIDADE E CONFIDENCIALIDADE', 'A CONTRATADA compromete-se a manter sigilo absoluto sobre todas as informações estratégicas, comerciais, financeiras e operacionais da CONTRATANTE obtidas no decorrer deste contrato, conforme Lei Geral de Proteção de Dados (Lei nº 13.709/2018).');
+    addSection(3, 'Prazo de Vigência',
+      `O contrato terá duração de 12 (doze) meses, com início em ${dateStr} e encerramento automático ao final do período, podendo ser renovado mediante acordo entre as partes com antecedência mínima de 30 dias.`);
 
-    addSection('5. PROPRIEDADE INTELECTUAL', 'Todos os materiais, estratégias e conteúdos criados pela CONTRATADA durante a vigência do contrato são de propriedade da CONTRATANTE após o pagamento integral de cada competência, exceto metodologias, frameworks e processos internos da CONTRATADA que são e permanecem de sua exclusiva propriedade intelectual.');
+    addSection(4, 'Exclusividade e Confidencialidade',
+      'A CONTRATADA compromete-se a manter sigilo absoluto sobre todas as informações estratégicas, comerciais, financeiras e operacionais da CONTRATANTE obtidas no decorrer deste contrato, conforme a Lei Geral de Proteção de Dados — Lei nº 13.709/2018.');
+
+    addSection(5, 'Propriedade Intelectual',
+      'Todos os materiais, estratégias e conteúdos criados pela CONTRATADA durante a vigência do contrato são de propriedade da CONTRATANTE após o pagamento integral de cada competência, exceto metodologias, frameworks e processos internos da CONTRATADA, que permanecem de sua exclusiva propriedade intelectual.');
 
     pageFooter(doc, W, H, ML, 2);
 
-    // ── PAGE 3: PAYMENT & OBLIGATIONS ─────────────
-    doc.addPage();
-    pageHeader(doc, W, ML, MR, 'Condições de Pagamento e Obrigações');
-    y = 52;
+    // PAGE 3
+    doc.addPage(); pageHeader(doc, W, ML, MR); y = 30;
 
-    addSection('6. VALOR E FORMA DE PAGAMENTO', `O valor mensal dos serviços é de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}), com vencimento todo dia ${cliente.venc} (${ordinal(parseInt(cliente.venc))}) de cada mês, mediante PIX, transferência bancária ou boleto emitido pela CONTRATADA.\n\nO atraso no pagamento implica cobrança de multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.`);
+    addSection(6, 'Valor e Forma de Pagamento',
+      `O valor mensal dos serviços é de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}), com vencimento todo dia ${cliente.venc} (${ordinal(parseInt(cliente.venc))}) de cada mês, mediante PIX, transferência bancária ou boleto emitido pela CONTRATADA.\n\nO atraso no pagamento implica cobrança de multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.`);
 
-    addSection('7. OBRIGAÇÕES DA CONTRATADA', `• Alocar equipe multidisciplinar dedicada ao projeto
-• Cumprir cronograma de entregas previamente acordado
-• Apresentar relatórios mensais de resultados e desempenho (KPIs)
-• Disponibilizar atendimento via WhatsApp em horário comercial
-• Respeitar os valores e a identidade da marca da CONTRATANTE`);
+    addSection(7, 'Obrigações da Contratada',
+      '• Alocar equipe multidisciplinar dedicada ao projeto\n• Cumprir cronograma de entregas previamente acordado\n• Apresentar relatórios mensais de resultados e desempenho (KPIs)\n• Disponibilizar atendimento via WhatsApp em horário comercial\n• Respeitar os valores e a identidade da marca da CONTRATANTE', true);
 
-    addSection('8. OBRIGAÇÕES DA CONTRATANTE', `• Fornecer à CONTRATADA acesso a ferramentas, plataformas e informações necessárias
-• Aprovar ou solicitar revisões nos materiais em até 3 (três) dias úteis
-• Efetuar os pagamentos nos prazos acordados
-• Indicar um ponto focal responsável pela comunicação com a equipe NEXO
-• Respeitar o prazo mínimo de contrato`);
+    addSection(8, 'Obrigações da Contratante',
+      '• Fornecer à CONTRATADA acesso a ferramentas, plataformas e informações necessárias\n• Aprovar ou solicitar revisões nos materiais em até 3 (três) dias úteis\n• Efetuar os pagamentos nos prazos acordados\n• Indicar um ponto focal responsável pela comunicação com a equipe NEXO\n• Respeitar o prazo mínimo de contrato', true);
 
-    addSection('9. RESCISÃO', `Qualquer das partes pode rescindir este contrato mediante notificação por escrito com antecedência mínima de 30 (trinta) dias. Em caso de rescisão imotivada pela CONTRATANTE antes do término do prazo mínimo, fica devida multa equivalente a 30% do valor total restante do contrato. A rescisão por descumprimento de obrigações dará direito à parte prejudicada de exigir perdas e danos.`);
+    addSection(9, 'Rescisão',
+      `Qualquer das partes pode rescindir este contrato mediante notificação por escrito com antecedência mínima de 30 (trinta) dias. Em caso de rescisão imotivada pela CONTRATANTE antes do término do prazo mínimo, fica devida multa equivalente a 30% do valor total restante do contrato.`);
 
     pageFooter(doc, W, H, ML, 3);
 
-    // ── PAGE 4: GENERAL TERMS & SIGNATURES ────────
-    doc.addPage();
-    pageHeader(doc, W, ML, MR, 'Disposições Gerais e Assinaturas');
-    y = 52;
+    // PAGE 4 — DISPOSIÇÕES & ASSINATURAS
+    doc.addPage(); pageHeader(doc, W, ML, MR); y = 30;
 
-    addSection('10. LIMITAÇÃO DE RESPONSABILIDADE', 'A CONTRATADA não se responsabiliza por resultados que dependam exclusivamente de fatores externos ao seu controle, tais como sazonalidade do mercado, mudanças de algoritmos de plataformas de terceiros, crises econômicas ou inação da CONTRATANTE no cumprimento de suas obrigações.');
+    addSection(10, 'Limitação de Responsabilidade',
+      'A CONTRATADA não se responsabiliza por resultados que dependam exclusivamente de fatores externos ao seu controle, tais como sazonalidade do mercado, mudanças de algoritmos de plataformas de terceiros, crises econômicas ou inação da CONTRATANTE no cumprimento de suas obrigações.');
 
-    addSection('11. FORO', 'As partes elegem o foro da comarca de Goiânia – GO para dirimir quaisquer dúvidas ou litígios decorrentes do presente contrato, com renúncia expressa a qualquer outro foro, por mais privilegiado que seja.');
+    addSection(11, 'Foro e Legislação Aplicável',
+      'As partes elegem o foro da comarca de Goiânia – GO para dirimir quaisquer dúvidas ou litígios decorrentes do presente contrato, com renúncia expressa a qualquer outro foro, por mais privilegiado que seja.');
 
-    addSection('12. ACEITE E VALIDADE', 'O presente contrato, assinado eletronicamente pelas partes, tem plena validade jurídica nos termos da Lei nº 14.063/2020 e demais disposições legais aplicáveis. A assinatura eletrônica possui a mesma validade da assinatura manuscrita.');
+    addSection(12, 'Aceite e Validade Jurídica',
+      'O presente contrato, assinado eletronicamente pelas partes, tem plena validade jurídica nos termos da Lei nº 14.063/2020. A assinatura eletrônica possui a mesma validade da assinatura manuscrita.');
 
-    // Signatures
-    y += 10;
-    doc.setFillColor(247, 243, 235);
-    doc.rect(ML, y, TW, 68, 'F');
-    y += 8;
+    // ── SIGNATURE BLOCK ─────────────────────────────
+    const sigY = H - 88;
 
-    navy(); doc.setFontSize(8).setFont('helvetica','bold');
-    doc.text(`Goiânia, ${today()}`, ML + TW/2, y, { align: 'center' });
-    y += 14;
+    // Background panel
+    setFill(C.paper); doc.rect(ML, sigY, TW, 74, 'F');
+    setFill(C.blue);  doc.rect(ML, sigY, TW, 1.5, 'F');
 
-    // Left sig — client
-    const sigLeft = ML + TW/4;
-    const sigRight = ML + (3 * TW/4);
-    doc.setDrawColor(13, 27, 62); doc.setLineWidth(0.3);
+    // Location & date centered
+    setTxt(C.muted); doc.setFontSize(8).setFont('helvetica','normal');
+    doc.text(`Goiânia – GO, ${today()}`, W / 2, sigY + 10, { align: 'center' });
 
-    doc.line(ML + 6, y, ML + 6 + TW/2 - 14, y);
-    navy(); doc.setFontSize(7).setFont('helvetica','bold');
-    doc.text('CONTRATANTE', ML + 6, y + 5);
-    black(); doc.setFont('helvetica','normal');
-    doc.text(cliente.razao, ML + 6, y + 10, { maxWidth: TW/2 - 14 });
-    doc.text(`CNPJ: ${cliente.cnpj}`, ML + 6, y + 16);
-    doc.text(`Rep.: ${cliente.rep}`, ML + 6, y + 22);
+    // Two sig columns
+    const sc = (TW - 16) / 2;
+    const s1x = ML + 4, s2x = ML + 4 + sc + 8;
+    const lineY = sigY + 42;
 
-    const sigRStart = ML + TW/2 + 8;
-    doc.line(sigRStart, y, sigRStart + TW/2 - 14, y);
-    navy(); doc.setFontSize(7).setFont('helvetica','bold');
-    doc.text('CONTRATADA', sigRStart, y + 5);
-    black(); doc.setFont('helvetica','normal');
-    doc.text('NEXO CONSULTORIA LTDA', sigRStart, y + 10);
-    doc.text('contato@nexo.com.br', sigRStart, y + 16);
+    // Signature lines
+    setDraw(C.navy); doc.setLineWidth(0.4);
+    doc.line(s1x, lineY, s1x + sc, lineY);
+    doc.line(s2x, lineY, s2x + sc, lineY);
 
-    y += 30;
-    muted(); doc.setFontSize(6.5);
-    doc.text('Este contrato foi gerado eletronicamente pelo Nexo Presenter · Growth Engine® · Nexo Consultoria & Growth', ML + TW/2, H - 18, { align: 'center' });
+    // Labels above lines
+    setTxt(C.blue); doc.setFontSize(6.5).setFont('helvetica','bold');
+    doc.text('CONTRATANTE', s1x, lineY - 3);
+    doc.text('CONTRATADA', s2x, lineY - 3);
+
+    // Details below lines
+    setTxt(C.ink); doc.setFontSize(8).setFont('helvetica','bold');
+    doc.text(doc.splitTextToSize(cliente.razao, sc)[0], s1x, lineY + 7);
+    doc.text('NEXO CONSULTORIA LTDA', s2x, lineY + 7);
+
+    setTxt(C.muted); doc.setFontSize(7.2).setFont('helvetica','normal');
+    doc.text(`CNPJ: ${cliente.cnpj}`, s1x, lineY + 13);
+    doc.text(`Rep.: ${cliente.rep}`, s1x, lineY + 19, { maxWidth: sc });
+    doc.text('contato@nexo.com.br', s2x, lineY + 13);
+    doc.text('Goiânia – GO', s2x, lineY + 19);
+
+    // Watermark footer note
+    setTxt([170, 180, 200]); doc.setFontSize(6).setFont('helvetica','normal');
+    doc.text('Documento gerado eletronicamente pelo Nexo Presenter  ·  Growth Engine®  ·  Nexo Consultoria & Growth', W / 2, sigY + 70, { align: 'center' });
 
     pageFooter(doc, W, H, ML, 4);
 
@@ -1037,26 +1094,35 @@ async function gerarPDF() {
 }
 
 // ── PDF HELPERS ───────────────────────────────────────
-function pageHeader(doc, W, ML, MR, title) {
+function pageHeader(doc, W, ML, MR) {
+  // Slim navy top bar
   doc.setFillColor(13, 27, 62);
-  doc.rect(0, 0, W, 14, 'F');
-  doc.setTextColor(255,255,255);
-  doc.setFontSize(7).setFont('helvetica','bold');
-  doc.text('NEXO CONSULTORIA & GROWTH  ·  GROWTH ENGINE®', ML, 9.5);
-  doc.setTextColor(200,150,30);
-  doc.text(title.toUpperCase(), W - ML, 9.5, { align: 'right' });
+  doc.rect(0, 0, W, 8, 'F');
+  // Gold left strip
+  doc.setFillColor(200, 150, 30);
+  doc.rect(0, 0, 3, 8, 'F');
+  // Blue bottom line
   doc.setFillColor(27, 79, 216);
-  doc.rect(0, 14, W, 1.5, 'F');
+  doc.rect(0, 8, W, 1, 'F');
+  // Brand text
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(6.5).setFont('helvetica','bold');
+  doc.text('NEXO  CONSULTORIA & GROWTH  ·  GROWTH ENGINE®', ML + 2, 5.8);
 }
 
 function pageFooter(doc, W, H, ML, num) {
-  doc.setFillColor(13, 27, 62);
-  doc.rect(0, H - 14, W, 14, 'F');
-  doc.setTextColor(255,255,255,0.4);
+  // Thin rule
+  doc.setDrawColor(200, 150, 30);
+  doc.setLineWidth(0.5);
+  doc.line(ML, H - 12, W - ML, H - 12);
+  // Left: branding
+  doc.setTextColor(100, 116, 135);
   doc.setFontSize(6.5).setFont('helvetica','normal');
-  doc.setTextColor(100,120,160);
-  doc.text('Growth Engine® · Nexo Consultoria & Growth · Confidencial', ML, H - 6);
-  doc.text(`${num}`, W - ML, H - 6, { align: 'right' });
+  doc.text('Growth Engine®  ·  Nexo Consultoria & Growth  ·  Confidencial', ML, H - 7);
+  // Right: page number
+  doc.setTextColor(13, 27, 62);
+  doc.setFontSize(7).setFont('helvetica','bold');
+  doc.text(`${num} / 4`, W - ML, H - 7, { align: 'right' });
 }
 
 function today() {

@@ -955,8 +955,9 @@ async function gerarPDF() {
     setTxt(C.white); doc.setFontSize(9).setFont('helvetica','bold');
     doc.text('NEXO CONSULTORIA LTDA', cx2 + 5, cardY + 16);
     setTxt([180, 195, 225]); doc.setFontSize(7.5).setFont('helvetica','normal');
-    doc.text('Goiânia – GO', cx2 + 5, cardY + 23);
-    doc.text('contato@nexo.com.br', cx2 + 5, cardY + 29);
+    doc.text('CNPJ: 51.112.136/0001-24', cx2 + 5, cardY + 23);
+    doc.text('Rep.: Pedro Henrique Martins da Silva', cx2 + 5, cardY + 29);
+    doc.text('Goiânia – GO', cx2 + 5, cardY + 35);
     // decorative "N" watermark
     setTxt([27, 45, 90]); doc.setFontSize(52).setFont('helvetica','bold');
     doc.text('N', cx2 + colW - 26, cardY + cardH - 6);
@@ -1101,8 +1102,8 @@ async function gerarPDF() {
     setTxt(C.muted); doc.setFontSize(7.2).setFont('helvetica','normal');
     doc.text(`CNPJ: ${cliente.cnpj}`, s1x, lineY + 13);
     doc.text(`Rep.: ${cliente.rep}`, s1x, lineY + 19, { maxWidth: sc });
-    doc.text('contato@nexo.com.br', s2x, lineY + 13);
-    doc.text('Goiânia – GO', s2x, lineY + 19);
+    doc.text('CNPJ: 51.112.136/0001-24', s2x, lineY + 13);
+    doc.text('Rep.: Pedro Henrique Martins da Silva', s2x, lineY + 19, { maxWidth: sc });
 
     // Watermark footer note
     setTxt([170, 180, 200]); doc.setFontSize(6).setFont('helvetica','normal');
@@ -1188,6 +1189,7 @@ function scopeByPlan(plano) {
   const scopes = {
     BASE: `• Gestão de 1 canal de tráfego pago (Google Ads ou Meta Ads)
 • Criação de até 4 peças criativas por mês
+• Progressão e otimização de presença em marketplaces (Mercado Livre, Shopee ou Amazon): cadastro e organização de produtos, melhoria de títulos, descrições e imagens para maior conversão
 • 1 reunião mensal de alinhamento e resultados
 • Relatório mensal de desempenho (KPIs)
 • Suporte via WhatsApp em horário comercial`,

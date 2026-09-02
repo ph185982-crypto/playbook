@@ -426,8 +426,16 @@ body.laser-active #laser-canvas{pointer-events:none}
     </label>
   </div>
 
+  <!-- Custom price -->
+  <div class="form-grid" style="margin-top:10px">
+    <div class="fg" style="grid-column:1/-1">
+      <label for="f-preco">Valor mensal negociado (R$) <span style="color:var(--gold);font-size:9px;letter-spacing:.1em">EDITÁVEL</span></label>
+      <input type="text" id="f-preco" placeholder="Ex: 2.500,00" autocomplete="off">
+    </div>
+  </div>
+
   <!-- Dates -->
-  <div class="form-section-label">Vigência e Pagamento</div>
+  <div class="form-section-label" style="margin-top:14px">Vigência e Pagamento</div>
   <div class="form-grid">
     <div class="fg">
       <label for="f-inicio">Data de início</label>
@@ -770,17 +778,26 @@ async function fetchCNPJ(cnpj) {
 }
 
 // ── PLAN SELECTION ────────────────────────────────────
+const fPreco = document.getElementById('f-preco');
+
 document.querySelectorAll('.plan-card').forEach(card => {
   card.addEventListener('click', () => {
     document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
     card.classList.add('selected');
-    card.querySelector('input').checked = true;
+    const radio = card.querySelector('input');
+    radio.checked = true;
+    // fill the editable price field with the plan's default price
+    fPreco.value = radio.dataset.price;
     validateForm();
   });
 });
 
+// initialise field with the default selected plan price
+const defaultRadio = document.querySelector('input[name="plan"]:checked');
+if (defaultRadio) fPreco.value = defaultRadio.dataset.price;
+
 // ── FORM VALIDATION ───────────────────────────────────
-const formFields = ['f-razao', 'f-rep', 'f-inicio', 'f-venc'];
+const formFields = ['f-razao', 'f-rep', 'f-inicio', 'f-venc', 'f-preco'];
 formFields.forEach(id => {
   document.getElementById(id).addEventListener('input', validateForm);
 });
@@ -790,10 +807,10 @@ function validateForm() {
   const rep     = document.getElementById('f-rep').value.trim();
   const inicio  = document.getElementById('f-inicio').value;
   const venc    = document.getElementById('f-venc').value;
+  const preco   = fPreco.value.trim();
   const planOk  = !!document.querySelector('input[name="plan"]:checked');
-  const cnpjOk  = cnpjSt.classList.contains('ok');
 
-  const ok = razao && rep && inicio && venc && planOk;
+  const ok = razao && rep && inicio && venc && planOk && preco;
   document.getElementById('btn-gerar').disabled = !ok;
 }
 
@@ -807,7 +824,7 @@ async function gerarPDF() {
 
   const planRadio = document.querySelector('input[name="plan"]:checked');
   const plano     = planRadio ? planRadio.value : 'ESCALE';
-  const preco     = planRadio ? planRadio.dataset.price : '3.497,90';
+  const preco     = fPreco.value.trim() || (planRadio ? planRadio.dataset.price : '3.497,90');
 
   const cliente = {
     cnpj:    fCnpj.value,

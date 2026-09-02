@@ -77,6 +77,13 @@ html,body{height:100%;overflow:hidden;background:#0A1228;font-family:'Inter',sys
 .us-label{font-size:15px;color:rgba(255,255,255,.55);text-align:center;line-height:1.5}
 .us-label strong{color:#fff;display:block;font-size:17px;margin-bottom:4px}
 .us-hint{font-size:11px;letter-spacing:.1em;color:rgba(255,255,255,.25);text-transform:uppercase}
+#btn-skip-to-contract{
+  margin-top:20px;background:none;border:1px solid rgba(200,150,30,.35);
+  color:rgba(200,150,30,.75);font-size:12px;letter-spacing:.08em;
+  padding:9px 20px;border-radius:8px;cursor:pointer;display:flex;
+  align-items:center;gap:7px;font-family:inherit;transition:border-color .2s,color .2s;
+}
+#btn-skip-to-contract:hover{border-color:rgba(200,150,30,.8);color:rgba(200,150,30,1)}
 
 /* ── VIEWER SCREEN ────────────────────────────*/
 #viewer-screen {
@@ -306,6 +313,13 @@ body.laser-active #laser-canvas{pointer-events:none}
     </div>
     <div class="us-hint">Apresentação comercial</div>
   </div>
+  <button id="btn-skip-to-contract">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+    </svg>
+    Gerar contrato sem apresentação
+  </button>
 </div>
 
 <!-- ═══════════════ VIEWER SCREEN ═══════════════ -->
@@ -580,6 +594,13 @@ btnNext.addEventListener('click', goNext);
 btnPrev.addEventListener('click', goPrev);
 btnContract.addEventListener('click', openContract);
 btnBackSlides.addEventListener('click', closeContract);
+
+document.getElementById('btn-skip-to-contract').addEventListener('click', () => {
+  uploadScreen.classList.add('hidden');
+  setTimeout(() => { uploadScreen.style.display = 'none'; }, 420);
+  contractPanel.classList.add('open');
+  document.body.style.overflow = '';
+});
 
 function openContract() {
   contractPanel.classList.add('open');

@@ -450,10 +450,14 @@ body.laser-active #laser-canvas{pointer-events:none}
 
   <!-- Dates -->
   <div class="form-section-label" style="margin-top:14px">Vigência e Pagamento</div>
-  <div class="form-grid">
+  <div class="form-grid g3">
     <div class="fg">
       <label for="f-inicio">Data de início</label>
       <input type="date" id="f-inicio">
+    </div>
+    <div class="fg">
+      <label for="f-duracao">Duração (meses) <span style="color:var(--gold);font-size:9px;letter-spacing:.1em">EDITÁVEL</span></label>
+      <input type="number" id="f-duracao" value="12" min="1" max="60" placeholder="12">
     </div>
     <div class="fg">
       <label for="f-venc">Vencimento mensal (dia)</label>
@@ -818,7 +822,7 @@ const defaultRadio = document.querySelector('input[name="plan"]:checked');
 if (defaultRadio) fPreco.value = defaultRadio.dataset.price;
 
 // ── FORM VALIDATION ───────────────────────────────────
-const formFields = ['f-razao', 'f-rep', 'f-inicio', 'f-venc', 'f-preco'];
+const formFields = ['f-razao', 'f-rep', 'f-inicio', 'f-duracao', 'f-venc', 'f-preco'];
 formFields.forEach(id => {
   document.getElementById(id).addEventListener('input', validateForm);
 });
@@ -827,11 +831,12 @@ function validateForm() {
   const razao   = fRazao.value.trim();
   const rep     = document.getElementById('f-rep').value.trim();
   const inicio  = document.getElementById('f-inicio').value;
+  const duracao = document.getElementById('f-duracao').value;
   const venc    = document.getElementById('f-venc').value;
   const preco   = fPreco.value.trim();
   const planOk  = !!document.querySelector('input[name="plan"]:checked');
 
-  const ok = razao && rep && inicio && venc && planOk && preco;
+  const ok = razao && rep && inicio && duracao && venc && planOk && preco;
   document.getElementById('btn-gerar').disabled = !ok;
 }
 
@@ -847,6 +852,27 @@ async function gerarPDF() {
   const plano     = planRadio ? planRadio.value : 'ESCALE';
   const preco     = fPreco.value.trim() || (planRadio ? planRadio.dataset.price : '3.497,90');
 
+  const duracaoMeses = parseInt(document.getElementById('f-duracao').value) || 12;
+  const inicioVal    = document.getElementById('f-inicio').value;
+
+  // 1st installment = inicio + 1 month
+  const primeiraParcelaDate = new Date(inicioVal + 'T00:00:00');
+  primeiraParcelaDate.setMonth(primeiraParcelaDate.getMonth() + 1);
+  const primeiraParcelaStr  = formatDate(primeiraParcelaDate.toISOString().slice(0, 10));
+
+  // End date = inicio + duracaoMeses months
+  const fimDate = new Date(inicioVal + 'T00:00:00');
+  fimDate.setMonth(fimDate.getMonth() + duracaoMeses);
+  const fimStr  = formatDate(fimDate.toISOString().slice(0, 10));
+
+  // Duration in words
+  function mesesPorExtenso(n) {
+    const words = ['','um','dois','três','quatro','cinco','seis','sete','oito','nove','dez',
+                   'onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito',
+                   'dezenove','vinte','vinte e um','vinte e dois','vinte e três','vinte e quatro'];
+    return words[n] || String(n);
+  }
+
   const cliente = {
     cnpj:    fCnpj.value,
     razao:   fRazao.value.trim(),
@@ -855,10 +881,14 @@ async function gerarPDF() {
     email:   document.getElementById('f-email').value.trim(),
     whats:   document.getElementById('f-whats').value.trim(),
     end:     fEnd.value.trim(),
-    inicio:  document.getElementById('f-inicio').value,
+    inicio:  inicioVal,
     venc:    document.getElementById('f-venc').value,
     plano,
     preco,
+    duracao:        duracaoMeses,
+    duracaoExtenso: mesesPorExtenso(duracaoMeses),
+    fimStr,
+    primeiraParcelaStr,
   };
 
   try {
@@ -920,7 +950,7 @@ async function gerarPDF() {
     setTxt(C.navy); doc.setFontSize(11).setFont('helvetica','bold');
     doc.text('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', ML + 9, 101);
     setTxt(C.muted); doc.setFontSize(7.5).setFont('helvetica','normal');
-    doc.text(`Emitido em ${today()}  ·  Vigência: 12 meses  ·  Início: ${dateStr}`, ML + 9, 107);
+    doc.text(`Emitido em ${today()}  ·  Vigência: ${cliente.duracao} meses  ·  Início: ${dateStr}`, ML + 9, 107);
 
     // ── PARTIES ────────────────────────────────────
     const cardY = 118, cardH = 72, colW = (TW - 6) / 2;
@@ -983,7 +1013,7 @@ async function gerarPDF() {
 
     // Details row
     setTxt([180, 195, 225]); doc.setFontSize(7.5).setFont('helvetica','normal');
-    doc.text(`Vigência: 12 meses  ·  Início: ${dateStr}  ·  Vencimento: todo dia ${cliente.venc}`, ML + 8, planY + 32);
+    doc.text(`Vigência: ${cliente.duracao} meses  ·  Início: ${dateStr}  ·  Vencimento: todo dia ${cliente.venc}`, ML + 8, planY + 32);
 
     // Validity note
     setTxt([130, 150, 190]); doc.setFontSize(6.5);
@@ -1029,7 +1059,7 @@ async function gerarPDF() {
     addSection(2, `Escopo de Serviços — Plano ${cliente.plano}`, scopeByPlan(cliente.plano), true);
 
     addSection(3, 'Prazo de Vigência',
-      `O contrato terá duração de 12 (doze) meses, com início em ${dateStr} e encerramento automático ao final do período, podendo ser renovado mediante acordo entre as partes com antecedência mínima de 30 dias.`);
+      `O contrato terá duração de ${cliente.duracao} (${cliente.duracaoExtenso}) meses, com início em ${dateStr} e encerramento em ${cliente.fimStr}, podendo ser renovado mediante acordo entre as partes com antecedência mínima de 30 dias.`);
 
     addSection(4, 'Exclusividade e Confidencialidade',
       'A CONTRATADA compromete-se a manter sigilo absoluto sobre todas as informações estratégicas, comerciais, financeiras e operacionais da CONTRATANTE obtidas no decorrer deste contrato, conforme a Lei Geral de Proteção de Dados — Lei nº 13.709/2018.');
@@ -1043,7 +1073,7 @@ async function gerarPDF() {
     doc.addPage(); pageHeader(doc, W, ML, MR); y = 30;
 
     addSection(6, 'Valor e Forma de Pagamento',
-      `6.1 IMPLEMENTAÇÃO: O valor de entrada correspondente à implementação inicial é parte integrante do preço total contratado e cobre a configuração de estratégias, estruturação de processos e onboarding da equipe NEXO. Por tratar-se de serviço já prestado no início da vigência, o valor de implementação não é reembolsável em nenhuma hipótese.\n\n6.2 MENSALIDADE: O valor mensal dos serviços é de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}), com vencimento todo dia ${cliente.venc} (${ordinal(parseInt(cliente.venc))}) de cada mês, mediante PIX, transferência bancária ou boleto emitido pela CONTRATADA.\n\n6.3 INADIMPLÊNCIA: O atraso no pagamento implica cobrança de multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.`);
+      `6.1 ENTRADA / IMPLEMENTAÇÃO: O valor de entrada é equivalente a 1 (uma) mensalidade do plano contratado — R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}) — e é devido na assinatura deste contrato. Cobre a configuração de estratégias, estruturação de processos e onboarding da equipe NEXO. Por tratar-se de serviço já prestado no início da vigência, não é reembolsável em nenhuma hipótese.\n\n6.2 MENSALIDADE: O valor mensal dos serviços é de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}), com início de cobrança em ${cliente.primeiraParcelaStr} (30 dias após o início do contrato) e vencimento subsequente todo dia ${cliente.venc} (${ordinal(parseInt(cliente.venc))}) de cada mês, mediante PIX, transferência bancária ou boleto emitido pela CONTRATADA.\n\n6.3 INADIMPLÊNCIA: O atraso no pagamento implica cobrança de multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.`);
 
     addSection(7, 'Obrigações da Contratada',
       '• Alocar equipe multidisciplinar dedicada ao projeto\n• Cumprir cronograma de entregas previamente acordado\n• Apresentar relatórios mensais de resultados e desempenho (KPIs)\n• Disponibilizar atendimento via WhatsApp em horário comercial\n• Respeitar os valores e a identidade da marca da CONTRATANTE', true);

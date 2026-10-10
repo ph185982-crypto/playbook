@@ -981,7 +981,7 @@ async function gerarPDF() {
 
   const planRadio = document.querySelector('input[name="plan"]:checked');
   const plano     = planRadio ? planRadio.value : 'ESCALE';
-  const preco     = fPreco.value.trim() || (planRadio ? planRadio.dataset.price : '3.497,90');
+  const preco     = fmtBRL(fPreco.value.trim() || (planRadio ? planRadio.dataset.price : '3.497,90'));
 
   // 2nd payment days (barbearia only)
   const pgto2Radio = document.querySelector('input[name="pgto2"]:checked');
@@ -993,12 +993,12 @@ async function gerarPDF() {
   // 1st installment = inicio + 1 month
   const primeiraParcelaDate = new Date(inicioVal + 'T00:00:00');
   primeiraParcelaDate.setMonth(primeiraParcelaDate.getMonth() + 1);
-  const primeiraParcelaStr  = formatDate(primeiraParcelaDate.toISOString().slice(0, 10));
+  const primeiraParcelaStr  = formatDate(isoLocal(primeiraParcelaDate));
 
   // End date = inicio + duracaoMeses months
   const fimDate = new Date(inicioVal + 'T00:00:00');
   fimDate.setMonth(fimDate.getMonth() + duracaoMeses);
-  const fimStr  = formatDate(fimDate.toISOString().slice(0, 10));
+  const fimStr  = formatDate(isoLocal(fimDate));
 
   // Duration in words
   function mesesPorExtenso(n) {
@@ -1351,9 +1351,50 @@ function ordinal(n) {
   return n + 'º';
 }
 
+function fmtBRL(v) {
+  let t = String(v ?? '').replace(/[^\d.,]/g, '');
+  if (!t) return '';
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (!/^\d+\.\d{1,2}$/.test(t)) t = t.replace(/\./g, '');
+  const n = parseFloat(t);
+  return isNaN(n) ? String(v) : n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function numExtenso(n) {
+  const u = ['zero','um','dois','três','quatro','cinco','seis','sete','oito','nove','dez','onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
+  const d = ['','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa'];
+  const c = ['','cento','duzentos','trezentos','quatrocentos','quinhentos','seiscentos','setecentos','oitocentos','novecentos'];
+  if (n < 20) return u[n];
+  if (n < 100) return d[Math.floor(n / 10)] + (n % 10 ? ' e ' + u[n % 10] : '');
+  if (n === 100) return 'cem';
+  if (n < 1000) return c[Math.floor(n / 100)] + (n % 100 ? ' e ' + numExtenso(n % 100) : '');
+  if (n < 1000000) {
+    const m = Math.floor(n / 1000), r = n % 1000;
+    const head = m === 1 ? 'mil' : numExtenso(m) + ' mil';
+    return head + (r ? (r < 100 || r % 100 === 0 ? ' e ' : ' ') + numExtenso(r) : '');
+  }
+  return String(n);
+}
+
 function valorPorExtenso(preco) {
-  const map = { '1.997,90':'mil, novecentos e noventa e sete reais e noventa centavos', '3.497,90':'três mil, quatrocentos e noventa e sete reais e noventa centavos', '5.497,90':'cinco mil, quatrocentos e noventa e sete reais e noventa centavos' };
-  return map[preco] || preco;
+  const f = fmtBRL(preco);
+  if (!f) return '';
+  const [r, cts] = f.replace(/\./g, '').split(',').map(x => parseInt(x, 10));
+  const reais = r === 1 ? 'um real' : numExtenso(r) + (r >= 1000000 || (r % 1000000 === 0 && r) ? ' de reais' : ' reais');
+  const cent = cts ? (cts === 1 ? 'um centavo' : numExtenso(cts) + ' centavos') : '';
+  return r === 0 ? cent : reais + (cent ? ' e ' + cent : '');
+}
+
+function isoLocal(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function addMonthsClamp(date, n) {
+  const d = new Date(date.getFullYear(), date.getMonth() + n, 1);
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(date.getDate(), last));
+  return d;
 }
 
 function scopeByPlan(plano) {
@@ -1415,7 +1456,14 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
     // pgto2 date
     const pgto2Date = new Date(cliente.inicio + 'T00:00:00');
     pgto2Date.setDate(pgto2Date.getDate() + pgto2Dias);
-    const pgto2Str = formatDate(pgto2Date.toISOString().slice(0,10));
+    const pgto2Str = formatDate(isoLocal(pgto2Date));
+    const diaRec = pgto2Date.getDate();
+    const nParc = parseInt(cliente.duracao) || 3;
+    const ordF = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª','11ª','12ª','13ª','14ª','15ª','16ª','17ª','18ª','19ª','20ª','21ª','22ª','23ª','24ª'];
+    const cronograma = Array.from({ length: nParc }, (_, i) => {
+      const dt = i === 0 ? dateStr : formatDate(isoLocal(addMonthsClamp(pgto2Date, i - 1)));
+      return `${ordF[i] || (i + 1) + 'ª'} parcela: ${dt}${i === 0 ? ' (assinatura)' : ''}`;
+    }).join('; ');
 
     // helper: header / footer
     function bhHeader(doc) {
@@ -1434,8 +1482,6 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
       doc.text(`${num} / ${total}`, W - ML, H - 7, { align: 'right' });
     }
 
-    // PAGE TOTAL: dynamic based on content — we'll use 3 pages
-    const TOTAL = 3;
     let y = 0;
 
     // ══ PAGE 1 — CAPA ════════════════════════════════════
@@ -1505,15 +1551,16 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
 
     // Payment schedule
     setTxt(C.gold); doc.setFontSize(7).setFont('helvetica','bold');
-    const mid = ML + TW / 2 + 4;
+    const mid = ML + TW / 2 - 8;
     doc.text('1º PAGAMENTO', mid, planY + 10);
-    doc.text('2º PAGAMENTO', mid + 55, planY + 10);
+    doc.text('2º PAGAMENTO', mid + 48, planY + 10);
     setTxt(C.white); doc.setFontSize(8).setFont('helvetica','bold');
     doc.text('Na assinatura', mid, planY + 19);
-    doc.text(`${pgto2Dias} dias após`, mid + 55, planY + 19);
+    doc.text(`${pgto2Dias} dias após`, mid + 48, planY + 19);
     setTxt([180,195,220]); doc.setFontSize(7.2).setFont('helvetica','normal');
     doc.text(dateStr, mid, planY + 26);
-    doc.text(pgto2Str, mid + 55, planY + 26);
+    doc.text(pgto2Str, mid + 48, planY + 26);
+    doc.text(`Demais parcelas: todo dia ${diaRec}`, mid, planY + 34);
 
     setTxt(C.muted); doc.setFontSize(7).setFont('helvetica','normal');
     doc.text(`Vigência: ${cliente.duracao} meses  ·  Início: ${dateStr}  ·  Encerramento: ${cliente.fimStr}`, ML + 8, planY + 46);
@@ -1522,7 +1569,6 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
     setTxt(C.muted); doc.setFontSize(6.5).setFont('helvetica','normal');
     doc.text(`Emitido em ${today()}  ·  Vigência: ${cliente.duracao} meses  ·  Início: ${dateStr}`, ML + 8, 232);
 
-    bhFooter(doc, 1, TOTAL);
 
     // ══ PAGE 2 — ESCOPO & CLÁUSULAS ══════════════════════
     doc.addPage(); bhHeader(doc); y = 24;
@@ -1567,14 +1613,13 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
     addSec(5, 'Propriedade Intelectual',
       'Todos os materiais, vídeos, artes e conteúdos criados pela CONTRATADA durante a vigência são de propriedade da CONTRATANTE após o pagamento integral de cada competência, exceto metodologias e processos internos da CONTRATADA.');
 
-    bhFooter(doc, 2, TOTAL);
 
     // ══ PAGE 3 — PAGAMENTO, RESCISÃO & ASSINATURAS ═══════
     doc.addPage(); bhHeader(doc); y = 24;
 
     addSec(6, 'Valor e Forma de Pagamento',
       `6.1 ENTRADA: O 1º pagamento, no valor de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}), é devido na data de assinatura deste contrato (${dateStr}) e cobre a implementação inicial das campanhas e perfis.\n\n` +
-      `6.2 DEMAIS PARCELAS: A partir do 2º pagamento, o valor mensal de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}) será cobrado com vencimento ${pgto2Dias === 30 ? '30 dias' : pgto2Dias === 45 ? '45 dias' : '60 dias'} após a assinatura (${pgto2Str}), e subsequentemente todo dia ${cliente.venc} (${ordinal(parseInt(cliente.venc))}) de cada mês.\n\n` +
+      `6.2 DEMAIS PARCELAS: A partir do 2º pagamento, o valor mensal de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}) será cobrado com vencimento ${pgto2Dias} dias após a assinatura (${pgto2Str}), e as seguintes todo dia ${diaRec} de cada mês${diaRec > 28 ? ' (ou no último dia do mês, quando este não existir)' : ''}, totalizando ${nParc} (${cliente.duracaoExtenso}) parcelas ao longo da vigência. Cronograma: ${cronograma}.\n\n` +
       '6.3 INADIMPLÊNCIA: O atraso implica multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.');
 
     addSec(7, 'Obrigações da Contratada',
@@ -1593,8 +1638,9 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
       'As partes elegem o foro da comarca de Goiânia – GO para dirimir quaisquer litígios, renunciando a qualquer outro foro. O presente contrato tem plena validade jurídica nos termos da Lei nº 14.063/2020.');
 
     // ── SIGNATURE BLOCK ──────────────────────────────────
-    const sigY = H - 82;
-    setFill(C.paper); doc.rect(ML, sigY, TW, 68, 'F');
+    let sigY = y + 8;
+    if (sigY + 76 > H - 16) { doc.addPage(); bhHeader(doc); sigY = 30; }
+    setFill(C.paper); doc.rect(ML, sigY, TW, 76, 'F');
     setFill(C.red);   doc.rect(ML, sigY, TW, 1.5, 'F');
 
     setTxt(C.muted); doc.setFontSize(7).setFont('helvetica','normal');
@@ -1622,9 +1668,10 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
     doc.text('Rep.: Pedro Henrique Martins da Silva', s2x, lineY + 19, { maxWidth: sc });
 
     setTxt([170,180,200]); doc.setFontSize(6).setFont('helvetica','normal');
-    doc.text('Documento gerado eletronicamente pelo Nexo Presenter  ·  Gestão de Mídias Sociais & Tráfego Pago  ·  Nexo Consultoria & Growth', W / 2, sigY + 62, { align: 'center' });
+    doc.text('Documento gerado eletronicamente pelo Nexo Presenter  ·  Gestão de Mídias Sociais & Tráfego Pago  ·  Nexo Consultoria & Growth', W / 2, sigY + 70, { align: 'center' });
 
-    bhFooter(doc, TOTAL, TOTAL);
+    const nPages = doc.getNumberOfPages();
+    for (let pg = 1; pg <= nPages; pg++) { doc.setPage(pg); bhFooter(doc, pg, nPages); }
 
     const fname = `Contrato_Barbearia_${cliente.razao.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)}.pdf`;
     doc.save(fname);
@@ -1851,6 +1898,21 @@ document.getElementById('zs-list').addEventListener('click', async ev => {
     }
   } catch (e) { showToast('ZapSign: ' + e.message); }
 });
+
+// ── VENCIMENTO AUTOMÁTICO (BARBEARIA) ─────────────────
+function syncVenc() {
+  const fv = document.getElementById('f-venc');
+  if (getModelo() !== 'barbearia') { fv.readOnly = false; fv.title = ''; return; }
+  const ini = document.getElementById('f-inicio').value;
+  const dias = parseInt((document.querySelector('input[name="pgto2"]:checked') || {}).value || '45', 10);
+  if (!ini) return;
+  const d = new Date(ini + 'T00:00:00'); d.setDate(d.getDate() + dias);
+  fv.value = d.getDate(); fv.readOnly = true; fv.title = 'No modelo Barbearia o vencimento segue o dia do 2º pagamento';
+  validateForm();
+}
+document.querySelectorAll('.model-card, .pgto2-card').forEach(c => c.addEventListener('click', () => setTimeout(syncVenc, 0)));
+document.getElementById('f-inicio').addEventListener('input', syncVenc);
+fPreco.addEventListener('blur', () => { const f = fmtBRL(fPreco.value); if (f) fPreco.value = f; validateForm(); });
 
 // ── INIT ──────────────────────────────────────────────
 resizeLaserCanvas();

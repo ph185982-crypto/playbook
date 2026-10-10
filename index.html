@@ -317,6 +317,12 @@ body.laser-active #laser-canvas{pointer-events:none}
 .zs-actions button{font-size:11px;padding:5px 10px;border:1px solid var(--border);background:#fff;cursor:pointer;font-family:inherit;font-weight:600;color:var(--ink)}
 .zs-actions button:hover{border-color:var(--blue);color:var(--blue)}
 
+#edit-banner{margin-top:14px;padding:12px 14px;border:2px solid var(--gold);background:#FFFBEB;font-size:12px;color:var(--ink)}
+#edit-banner button{margin-top:8px;font-size:11px;padding:5px 10px;border:1px solid var(--border);background:#fff;cursor:pointer;font-family:inherit;font-weight:600}
+.zs-sec{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:10px}
+.zs-status.local{color:var(--muted)}.zs-status.recusado{color:#B91C1C}
+.zs-meta{color:var(--muted);line-height:1.5}
+
 /* ── TOAST ────────────────────────────────────*/
 #toast {
   position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(12px);
@@ -546,9 +552,20 @@ body.laser-active #laser-canvas{pointer-events:none}
   <button id="btn-gerar" disabled>Gerar Contrato PDF</button>
   <p class="btn-sub">O PDF será baixado automaticamente após a geração</p>
 
-  <label class="zs-opt"><input type="checkbox" id="zs-auto" checked> Enviar para assinatura via ZapSign (WhatsApp) ao gerar</label>
+  <div id="edit-banner" style="display:none">
+    <div><strong>Editando:</strong> <span id="edit-banner-name"></span></div>
+    <label class="zs-opt" style="margin-top:6px;font-weight:500"><input type="checkbox" id="cancel-old" checked> Cancelar a versão anterior no ZapSign ao enviar a nova</label>
+    <button type="button" id="edit-banner-x">Descartar edição</button>
+  </div>
+
+  <div class="form-section-label" style="margin-top:22px">Assinatura Eletrônica (ZapSign)</div>
+  <label class="zs-opt"><input type="checkbox" id="zs-auto" checked> Enviar ao cliente por WhatsApp/e-mail ao gerar</label>
+  <div class="fg" style="margin-top:10px">
+    <label for="f-nexo-email">E-mail da Nexo para assinar também (opcional)</label>
+    <input type="email" id="f-nexo-email" placeholder="seu@email.com">
+  </div>
   <button type="button" class="zs-btn" id="btn-zs-send" disabled>Enviar último contrato para assinatura</button>
-  <button type="button" class="zs-btn" id="btn-zs-list">Contratos enviados (ZapSign)</button>
+  <button type="button" class="zs-btn" id="btn-zs-list">Histórico de contratos</button>
   <div id="zs-list"></div>
 </div>
 
@@ -1623,22 +1640,37 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
   }
 }
 
-// ── ZAPSIGN ───────────────────────────────────────────
+// ── ZAPSIGN + HISTÓRICO ───────────────────────────────
 let lastContract = null;
+let editing = null; // histórico entry being edited
 const btnZsSend = document.getElementById('btn-zs-send');
+const fNexoEmail = document.getElementById('f-nexo-email');
+try { fNexoEmail.value = localStorage.getItem('nexo_contratada_email') || ''; } catch (_) {}
+fNexoEmail.addEventListener('change', () => { try { localStorage.setItem('nexo_contratada_email', fNexoEmail.value.trim()); } catch (_) {} });
+
+const HIST_KEY = 'nexo_history_v1';
+function histLoad() { try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch (_) { return []; } }
+function histSave(h) { try { localStorage.setItem(HIST_KEY, JSON.stringify(h.slice(0, 300))); } catch (_) {} }
+function histUpdate(id, patch) { const h = histLoad(); const e = h.find(x => x.id === id); if (e) { Object.assign(e, patch); histSave(h); } }
+
+class ZsError extends Error { constructor(m, status) { super(m); this.status = status; } }
 
 async function zs(action, params = {}) {
-  let pin = localStorage.getItem('nexo_pin');
-  if (!pin) { pin = prompt('PIN de acesso Nexo:'); if (!pin) throw new Error('PIN não informado'); }
+  let pin = null;
+  try { pin = localStorage.getItem('nexo_pin'); } catch (_) {}
+  if (!pin) { pin = prompt('PIN de acesso Nexo:'); if (!pin) throw new ZsError('PIN não informado', 0); }
   const r = await fetch('/api/zapsign', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-nexo-pin': pin },
     body: JSON.stringify({ action, ...params }),
   });
-  if (r.status === 401) { localStorage.removeItem('nexo_pin'); throw new Error('PIN inválido'); }
-  localStorage.setItem('nexo_pin', pin);
+  if (r.status === 401) { try { localStorage.removeItem('nexo_pin'); } catch (_) {} throw new ZsError('PIN inválido', 401); }
+  try { localStorage.setItem('nexo_pin', pin); } catch (_) {}
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.detail || data.error || data.message || `Erro ${r.status}`);
+  if (!r.ok) {
+    if (r.status === 402) throw new ZsError('O ZapSign exige um Plano de API ativo para criar documentos. O contrato foi salvo no histórico; envie manualmente por enquanto.', 402);
+    throw new ZsError(data.detail || data.error || data.message || data.raw || `Erro ${r.status}`, r.status);
+  }
   return data;
 }
 
@@ -1648,36 +1680,81 @@ function splitPhone(raw) {
   return { phone_country: '55', phone_number: d };
 }
 
+function collectForm() {
+  const g = id => document.getElementById(id).value.trim();
+  const plan = document.querySelector('input[name="plan"]:checked');
+  const p2 = document.querySelector('input[name="pgto2"]:checked');
+  return {
+    modelo: getModelo(), plano: plan ? plan.value : 'ESCALE', preco: fPreco.value.trim(),
+    pgto2: p2 ? p2.value : '45', cnpj: fCnpj.value, razao: fRazao.value.trim(), fantasia: fFanta.value.trim(),
+    rep: g('f-rep'), email: g('f-email'), whats: g('f-whats'), end: fEnd.value.trim(),
+    inicio: g('f-inicio'), duracao: g('f-duracao'), venc: g('f-venc'),
+  };
+}
+
+function loadForm(f) {
+  const click = sel => { const el = document.querySelector(sel); if (el) el.closest('label').click(); };
+  click(`input[name="modelo"][value="${f.modelo}"]`);
+  click(`input[name="plan"][value="${f.plano}"]`);
+  click(`input[name="pgto2"][value="${f.pgto2}"]`);
+  fPreco.value = f.preco || fPreco.value;
+  fCnpj.value = f.cnpj || ''; fRazao.value = f.razao || ''; fFanta.value = f.fantasia || '';
+  document.getElementById('f-rep').value = f.rep || '';
+  document.getElementById('f-email').value = f.email || '';
+  document.getElementById('f-whats').value = f.whats || '';
+  fEnd.value = f.end || '';
+  document.getElementById('f-inicio').value = f.inicio || '';
+  document.getElementById('f-duracao').value = f.duracao || '12';
+  document.getElementById('f-venc').value = f.venc || '';
+  setCnpjStatus('', '');
+  validateForm();
+}
+
+function setEditing(entry) {
+  editing = entry;
+  document.getElementById('edit-banner').style.display = entry ? '' : 'none';
+  if (entry) document.getElementById('edit-banner-name').textContent = entry.filename;
+}
+document.getElementById('edit-banner-x').addEventListener('click', () => setEditing(null));
+
 async function afterPDF(doc, filename, cliente) {
   const base64 = doc.output('datauristring').split(',')[1];
-  lastContract = { base64, filename, cliente };
+  const entry = { id: 'h' + Date.now(), createdAt: new Date().toISOString(), filename, form: collectForm(), replaces: editing ? editing.id : null };
+  const h = histLoad(); h.unshift(entry); histSave(h);
+  lastContract = { base64, filename, cliente, entry, prev: editing };
   btnZsSend.disabled = false;
   if (document.getElementById('zs-auto').checked) await enviarZapSign();
 }
 
 async function enviarZapSign() {
   if (!lastContract) return;
-  const { base64, filename, cliente } = lastContract;
+  const { base64, filename, cliente, entry, prev } = lastContract;
   const tel = splitPhone(cliente.whats);
-  if (tel.phone_number.length < 10) { showToast('Preencha o WhatsApp do cliente para enviar.'); return; }
+  if (tel.phone_number.length < 10 && !cliente.email) { showToast('Preencha WhatsApp ou e-mail do cliente para enviar.'); return; }
   btnZsSend.disabled = true;
   btnZsSend.textContent = 'Enviando…';
   try {
-    const signer = {
-      name: cliente.rep || cliente.razao,
-      auth_mode: 'assinaturaTela',
-      ...tel,
-      send_automatic_whatsapp: true,
-    };
+    const signer = { name: cliente.rep || cliente.razao, auth_mode: 'assinaturaTela' };
+    if (tel.phone_number.length >= 10) Object.assign(signer, tel, { send_automatic_whatsapp: true });
+    else signer.blank_phone = true;
     if (cliente.email) { signer.email = cliente.email; signer.send_automatic_email = true; }
+    else signer.blank_email = true;
+    const signers = [signer];
+    const nexoEmail = fNexoEmail.value.trim();
+    if (nexoEmail) signers.push({ name: 'Pedro Henrique Martins da Silva', email: nexoEmail, auth_mode: 'assinaturaTela', send_automatic_email: true, blank_phone: true });
+
     const res = await zs('create', { document: {
-      name: filename.replace(/\.pdf$/i, '').replace(/_/g, ' '),
-      base64_pdf: base64,
-      lang: 'pt-br',
-      signers: [signer],
+      name: filename, base64_pdf: base64, lang: 'pt-br', signers,
     }});
-    lastContract.zsToken = res.token;
+    histUpdate(entry.id, { zsToken: res.token, sentAt: new Date().toISOString() });
     showToast('Contrato enviado para assinatura via ZapSign!');
+
+    const oldTok = prev && prev.zsToken;
+    if (oldTok && document.getElementById('cancel-old').checked) {
+      try { await zs('cancel', { token: oldTok, reason: 'Substituído por nova versão do contrato', notify: false }); showToast('Versão anterior cancelada.'); }
+      catch (e) { showToast('Nova versão enviada, mas não cancelei a anterior: ' + e.message); }
+    }
+    setEditing(null);
   } catch (e) {
     showToast('ZapSign: ' + e.message);
   } finally {
@@ -1687,46 +1764,91 @@ async function enviarZapSign() {
 }
 btnZsSend.addEventListener('click', enviarZapSign);
 
-const STATUS_PT = { pending: 'Pendente', signed: 'Assinado', refused: 'Cancelado/Recusado' };
+const ST_DOC = { pending: 'Aguardando assinatura', signed: 'Assinado', recusado: 'Cancelado/Recusado', refused: 'Cancelado/Recusado' };
+const ST_SIGNER = { nao_abriu: 'não abriu', abriu: 'abriu o link', assinou: 'assinou', recusou: 'recusou', expirou: 'expirou', cancelado: 'cancelado' };
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fmtDate(iso) { try { return new Date(iso).toLocaleDateString('pt-BR') + ' ' + new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch (_) { return ''; } }
 
-async function listarZapSign() {
+function itemHTML({ title, meta, zsDoc, entry }) {
+  const st = zsDoc ? zsDoc.status : 'local';
+  const label = zsDoc ? (ST_DOC[st] || st) : 'Gerado · não enviado';
+  const sg = zsDoc ? (zsDoc.signers || []).map(s => `${esc(s.nome || s.name)}: ${esc(ST_SIGNER[s.status] || s.status)}`).join(' · ') : '';
+  const link = zsDoc && (zsDoc.signers || []).find(s => s.link_para_assinar);
+  const btns = [];
+  if (entry) btns.push('<button data-act="edit">Editar</button>');
+  if (zsDoc && st === 'pending') {
+    btns.push('<button data-act="resend">Reenviar link</button>');
+    if (link) btns.push('<button data-act="copy">Copiar link</button>');
+    btns.push('<button data-act="cancel">Cancelar</button>');
+  }
+  if (zsDoc && st === 'signed' && zsDoc.signed_file) btns.push(`<a href="${esc(zsDoc.signed_file)}" target="_blank" rel="noopener"><button type="button">Baixar assinado</button></a>`);
+  if (entry) btns.push('<button data-act="remove">Remover</button>');
+  return `<div class="zs-item" data-id="${esc(entry ? entry.id : '')}" data-token="${esc(zsDoc ? zsDoc.token : '')}" data-link="${esc(link ? link.link_para_assinar : '')}">
+    <div class="zs-item-top"><span class="zs-item-name">${esc(title)}</span><span class="zs-status ${esc(st)}">${esc(label)}</span></div>
+    <div class="zs-meta">${meta}</div>${sg ? `<div class="zs-meta">${sg}</div>` : ''}
+    <div class="zs-actions">${btns.join('')}</div></div>`;
+}
+
+async function listarHistorico() {
   const box = document.getElementById('zs-list');
   box.innerHTML = '<div class="btn-sub">Carregando…</div>';
+  let zsDocs = [], zsErr = '';
   try {
     const data = await zs('list');
-    const docs = Array.isArray(data) ? data : (data.results || []);
-    if (!docs.length) { box.innerHTML = '<div class="btn-sub">Nenhum contrato encontrado.</div>'; return; }
-    box.innerHTML = docs.map(d => {
-      const sg = (d.signers || []).map(s => `${esc(s.name)} · ${esc(s.status)}`).join(' | ');
-      const pending = d.status === 'pending';
-      return `<div class="zs-item" data-token="${esc(d.token)}">
-        <div class="zs-item-top"><span class="zs-item-name">${esc(d.name)}</span>
-        <span class="zs-status ${esc(d.status)}">${esc(STATUS_PT[d.status] || d.status)}</span></div>
-        ${sg ? `<div style="color:var(--muted)">${sg}</div>` : ''}
-        <div class="zs-actions">
-          ${pending ? '<button data-act="resend">Reenviar link</button><button data-act="cancel">Cancelar</button>' : ''}
-          ${d.status === 'signed' && d.signed_file ? `<a href="${esc(d.signed_file)}" target="_blank" rel="noopener"><button type="button">Baixar assinado</button></a>` : ''}
-        </div></div>`;
-    }).join('');
-  } catch (e) { box.innerHTML = ''; showToast('ZapSign: ' + e.message); }
+    zsDocs = Array.isArray(data) ? data : (data.results || []);
+  } catch (e) { zsErr = e.message; }
+
+  const byToken = new Map(zsDocs.map(d => [d.token, d]));
+  const byName = new Map(); zsDocs.forEach(d => { if (!byName.has(d.name)) byName.set(d.name, d); });
+  const used = new Set();
+  const hist = histLoad();
+  const parts = [];
+  if (zsErr) parts.push(`<div class="zs-meta">Status do ZapSign indisponível (${esc(zsErr)}). Mostrando apenas o histórico local.</div>`);
+
+  if (hist.length) parts.push('<div class="zs-sec">Contratos emitidos aqui</div>');
+  hist.forEach(e => {
+    const z = (e.zsToken && byToken.get(e.zsToken)) || byName.get(e.filename) || null;
+    if (z) used.add(z.token);
+    const f = e.form || {};
+    parts.push(itemHTML({
+      title: f.razao || f.fantasia || e.filename,
+      meta: `${esc(f.modelo === 'barbearia' ? 'Barbearia' : 'Growth Engine · ' + (f.plano || ''))} · R$ ${esc(f.preco)} · ${esc(fmtDate(e.createdAt))}`,
+      zsDoc: z, entry: e }));
+  });
+
+  const others = zsDocs.filter(d => !used.has(d.token));
+  if (others.length) parts.push('<div class="zs-sec">Outros documentos no ZapSign</div>');
+  others.forEach(d => parts.push(itemHTML({ title: d.name, meta: esc(fmtDate(d.created_at)), zsDoc: d, entry: null })));
+
+  box.innerHTML = parts.length ? parts.join('') : '<div class="btn-sub">Nenhum contrato ainda.</div>';
 }
-document.getElementById('btn-zs-list').addEventListener('click', listarZapSign);
+document.getElementById('btn-zs-list').addEventListener('click', listarHistorico);
 
 document.getElementById('zs-list').addEventListener('click', async ev => {
   const b = ev.target.closest('button[data-act]');
   if (!b) return;
-  const token = b.closest('.zs-item').dataset.token;
+  const item = b.closest('.zs-item');
+  const { id, token, link } = item.dataset;
+  const act = b.dataset.act;
   try {
-    if (b.dataset.act === 'cancel') {
+    if (act === 'edit') {
+      const e = histLoad().find(x => x.id === id);
+      if (!e) return;
+      loadForm(e.form); setEditing(e);
+      contractPanel.scrollTo({ top: 0, behavior: 'smooth' });
+      showToast('Contrato carregado. Ajuste os dados e gere novamente.');
+    } else if (act === 'remove') {
+      if (!confirm('Remover do histórico local? (não afeta o ZapSign)')) return;
+      histSave(histLoad().filter(x => x.id !== id)); listarHistorico();
+    } else if (act === 'copy') {
+      await navigator.clipboard.writeText(link); showToast('Link de assinatura copiado.');
+    } else if (act === 'cancel') {
       if (!confirm('Cancelar este contrato? O cliente não poderá mais assinar.')) return;
-      await zs('cancel', { token, reason: 'Contrato cancelado/substituído pela Nexo', notify: false });
-      showToast('Contrato cancelado.');
-    } else {
-      await zs('resend', { token });
-      showToast('Link reenviado ao cliente.');
+      await zs('cancel', { token, reason: 'Contrato cancelado pela Nexo', notify: false });
+      showToast('Contrato cancelado.'); setTimeout(listarHistorico, 1500);
+    } else if (act === 'resend') {
+      await zs('resend', { token }); showToast('Link reenviado ao cliente.');
     }
-    setTimeout(listarZapSign, 1500);
   } catch (e) { showToast('ZapSign: ' + e.message); }
 });
 

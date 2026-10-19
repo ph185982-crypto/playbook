@@ -438,7 +438,7 @@ body.laser-active #laser-canvas{pointer-events:none}
     <label class="model-card selected" id="mc-growth">
       <input type="radio" name="modelo" value="growth" checked>
       <span class="model-card-name">Growth Engine®</span>
-      <span class="model-card-desc">Consultoria & growth — tráfego, funil e estratégia digital</span>
+      <span class="model-card-desc">Gestão de canais em marketplaces + publicidade (Ads) e consultoria</span>
     </label>
     <label class="model-card" id="mc-barbearia">
       <input type="radio" name="modelo" value="barbearia">
@@ -508,19 +508,22 @@ body.laser-active #laser-canvas{pointer-events:none}
   <div class="form-section-label">Plano Contratado</div>
   <div class="plans-grid">
     <label class="plan-card" id="pc-base">
-      <input type="radio" name="plan" value="BASE" data-price="1.997,90">
+      <input type="radio" name="plan" value="BASE" data-price="1.497,90">
       <span class="plan-name">BASE</span>
-      <div class="plan-price">R$1.997<sub>/mês</sub></div>
+      <div class="plan-price">R$1.497<sub>/mês</sub></div>
+      <span class="model-card-desc">Consultoria</span>
     </label>
     <label class="plan-card popular selected" id="pc-escale">
-      <input type="radio" name="plan" value="ESCALE" data-price="3.497,90" checked>
+      <input type="radio" name="plan" value="ESCALE" data-price="1.997,90" checked>
       <span class="plan-name">ESCALE</span>
-      <div class="plan-price">R$3.497<sub>/mês</sub></div>
+      <div class="plan-price">R$1.997<sub>/mês</sub></div>
+      <span class="model-card-desc">Consultoria + Gestão de Publicidade</span>
     </label>
     <label class="plan-card" id="pc-growth">
-      <input type="radio" name="plan" value="GROWTH" data-price="5.497,90">
+      <input type="radio" name="plan" value="GROWTH" data-price="4.497,90">
       <span class="plan-name">GROWTH</span>
-      <div class="plan-price">R$5.497<sub>/mês</sub></div>
+      <div class="plan-price">R$4.497<sub>/mês</sub></div>
+      <span class="model-card-desc">Assessoria Estratégica + Gestão de Publicidade</span>
     </label>
   </div>
 
@@ -981,7 +984,7 @@ async function gerarPDF() {
 
   const planRadio = document.querySelector('input[name="plan"]:checked');
   const plano     = planRadio ? planRadio.value : 'ESCALE';
-  const preco     = fmtBRL(fPreco.value.trim() || (planRadio ? planRadio.dataset.price : '3.497,90'));
+  const preco     = fmtBRL(fPreco.value.trim() || (planRadio ? planRadio.dataset.price : '1.997,90'));
 
   // 2nd payment days (barbearia only)
   const pgto2Radio = document.querySelector('input[name="pgto2"]:checked');
@@ -1079,7 +1082,7 @@ async function gerarPDF() {
 
     // Tagline
     setTxt([180, 195, 225]); doc.setFontSize(8).setFont('helvetica','normal');
-    doc.text('Consultoria em Marketing Digital & Aceleração de Crescimento', ML + 2, 58);
+    doc.text('Gestão de Marketplaces & Publicidade Digital  ·  Consultoria e Aceleração de Vendas', ML + 2, 58);
 
     // Thin gold bottom accent on header
     setFill(C.gold); doc.rect(0, 80, W, 2.5, 'F');
@@ -1141,7 +1144,7 @@ async function gerarPDF() {
 
     // Label
     setTxt(C.gold); doc.setFontSize(7).setFont('helvetica','bold');
-    doc.text('PLANO CONTRATADO', ML + 8, planY + 10);
+    doc.text(`PLANO CONTRATADO  ·  ${(PLANOS[cliente.plano] || PLANOS.ESCALE).tipo.toUpperCase()}`, ML + 8, planY + 10);
 
     // Plan name big
     setTxt(C.white); doc.setFontSize(22).setFont('helvetica','bold');
@@ -1158,8 +1161,6 @@ async function gerarPDF() {
     // Validity note
     setTxt([130, 150, 190]); doc.setFontSize(6.5);
     doc.text('Documento com validade jurídica nos termos da Lei nº 14.063/2020', ML + 8, planY + 40);
-
-    pageFooter(doc, W, H, ML, 1);
 
     // ══════════════════════════════════════════════
     // PAGES 2-4 — CLÁUSULAS
@@ -1183,7 +1184,7 @@ async function gerarPDF() {
       const lines = doc.splitTextToSize(body, TW - 2);
       // page break inside body
       for (const ln of lines) {
-        if (y > H - 28) { doc.addPage(); pageHeader(doc, W, ML, MR); y = 30; }
+        if (y > H - 28) { doc.addPage(); pageHeader(doc, W, ML, MR); y = 30; setTxt(C.body); doc.setFontSize(8.2).setFont('helvetica','normal'); }
         doc.text(ln, ML + 2, y);
         y += isList ? 5.2 : 5;
       }
@@ -1194,7 +1195,7 @@ async function gerarPDF() {
     doc.addPage(); pageHeader(doc, W, ML, MR); y = 30;
 
     addSection(1, 'Objeto do Contrato',
-      `O presente contrato tem por objeto a prestação de serviços de consultoria especializada em marketing digital, tráfego pago, posicionamento de marca e aceleração de crescimento comercial, por meio da metodologia exclusiva Growth Engine®, no plano ${cliente.plano}, conforme descrito neste instrumento.`);
+      `O presente contrato tem por objeto a prestação de serviços de consultoria e gestão de canais de vendas em marketplaces (Mercado Livre, Shopee e demais canais contratados), incluindo a gestão de publicidade paga (Ads) nesses canais, por meio da metodologia exclusiva Growth Engine®, no plano ${cliente.plano} (${(PLANOS[cliente.plano] || PLANOS.ESCALE).tipo}), conforme descrito neste instrumento.`);
 
     addSection(2, `Escopo de Serviços — Plano ${cliente.plano}`, scopeByPlan(cliente.plano), true);
 
@@ -1207,27 +1208,17 @@ async function gerarPDF() {
     addSection(5, 'Propriedade Intelectual',
       'Todos os materiais, estratégias e conteúdos criados pela CONTRATADA durante a vigência do contrato são de propriedade da CONTRATANTE após o pagamento integral de cada competência, exceto metodologias, frameworks e processos internos da CONTRATADA, que permanecem de sua exclusiva propriedade intelectual.');
 
-    pageFooter(doc, W, H, ML, 2);
-
-    // PAGE 3
-    doc.addPage(); pageHeader(doc, W, ML, MR); y = 30;
-
     addSection(6, 'Valor e Forma de Pagamento',
-      `6.1 ENTRADA / IMPLEMENTAÇÃO: O valor de entrada é equivalente a 1 (uma) mensalidade do plano contratado — R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}) — e é devido na assinatura deste contrato. Cobre a configuração de estratégias, estruturação de processos e onboarding da equipe NEXO. Por tratar-se de serviço já prestado no início da vigência, não é reembolsável em nenhuma hipótese.\n\n6.2 MENSALIDADE: O valor mensal dos serviços é de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}), com início de cobrança em ${cliente.primeiraParcelaStr} (30 dias após o início do contrato) e vencimento subsequente todo dia ${cliente.venc} (${ordinal(parseInt(cliente.venc))}) de cada mês, mediante PIX, transferência bancária ou boleto emitido pela CONTRATADA.\n\n6.3 INADIMPLÊNCIA: O atraso no pagamento implica cobrança de multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.`);
+      `6.1 ENTRADA / IMPLEMENTAÇÃO: O valor de entrada é equivalente a 1 (uma) mensalidade do plano contratado — R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}) — e é devido na assinatura deste contrato. Cobre a configuração de estratégias, estruturação de processos e onboarding da equipe NEXO. Por tratar-se de serviço já prestado no início da vigência, não é reembolsável em nenhuma hipótese.\n\n6.2 MENSALIDADE: O valor mensal dos serviços é de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}), com início de cobrança em ${cliente.primeiraParcelaStr} (30 dias após o início do contrato) e vencimento subsequente todo dia ${cliente.venc} de cada mês, mediante PIX, transferência bancária ou boleto emitido pela CONTRATADA.\n\n6.3 INADIMPLÊNCIA: O atraso no pagamento implica cobrança de multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.`);
 
     addSection(7, 'Obrigações da Contratada',
-      '• Alocar equipe multidisciplinar dedicada ao projeto\n• Cumprir cronograma de entregas previamente acordado\n• Apresentar relatórios mensais de resultados e desempenho (KPIs)\n• Disponibilizar atendimento via WhatsApp em horário comercial\n• Respeitar os valores e a identidade da marca da CONTRATANTE', true);
+      `• Alocar equipe multidisciplinar dedicada ao projeto\n• Cumprir cronograma de entregas previamente acordado\n• Apresentar relatórios mensais de resultados e desempenho (KPIs)\n• Manter grupo de WhatsApp para atendimento, respeitando o tempo máximo de resposta (SLA) de ${(PLANOS[cliente.plano] || PLANOS.ESCALE).sla}\n• Respeitar os valores e a identidade da marca da CONTRATANTE`, true);
 
     addSection(8, 'Obrigações da Contratante',
-      '• Fornecer à CONTRATADA acesso a ferramentas, plataformas e informações necessárias\n• Aprovar ou solicitar revisões nos materiais em até 3 (três) dias úteis\n• Efetuar os pagamentos nos prazos acordados\n• Indicar um ponto focal responsável pela comunicação com a equipe NEXO\n• Respeitar o prazo mínimo de contrato', true);
+      `• Fornecer à CONTRATADA acesso às contas dos marketplaces e plataformas de publicidade, bem como catálogo, estoque, preços e demais informações necessárias\n• Arcar diretamente com o investimento em publicidade (Ads) nas plataformas, o qual não está incluído na mensalidade, respeitado o limite de investimento sob gestão do plano contratado (${(PLANOS[cliente.plano] || PLANOS.ESCALE).limiteAds})\n• Aprovar ou solicitar revisões nos materiais em até 3 (três) dias úteis\n• Efetuar os pagamentos nos prazos acordados\n• Indicar um ponto focal responsável pela comunicação com a equipe NEXO\n• Respeitar o prazo mínimo de contrato`, true);
 
     addSection(9, 'Rescisão',
       `9.1 RESCISÃO PELA CONTRATANTE: A CONTRATANTE poderá rescindir este contrato a qualquer momento, sem incidência de multa ou juros, desde que notifique a CONTRATADA por escrito com antecedência mínima de 30 (trinta) dias. Neste caso, ficará devida exclusivamente a parcela do último mês de serviços prestados (equivalente aos 30 dias de atendimento em curso), sem qualquer outro encargo adicional.\n\n9.2 AUSÊNCIA DE AVISO PRÉVIO: Caso a CONTRATANTE não observe o prazo mínimo de aviso de 30 dias, fica devida a parcela correspondente aos 30 (trinta) dias de serviços que seriam prestados nesse período, a título de ressarcimento pela indisponibilização da equipe alocada, sem que isso configure multa.\n\n9.3 RESCISÃO PELA CONTRATADA: A CONTRATADA poderá rescindir este contrato por descumprimento das obrigações da CONTRATANTE, em especial inadimplência superior a 15 dias, mediante notificação por escrito, sem qualquer ônus para a CONTRATANTE além das parcelas já vencidas.\n\n9.4 Em nenhuma hipótese haverá devolução do valor de implementação (cláusula 6.1), por tratar-se de serviço já executado.`);
-
-    pageFooter(doc, W, H, ML, 3);
-
-    // PAGE 4 — DISPOSIÇÕES & ASSINATURAS
-    doc.addPage(); pageHeader(doc, W, ML, MR); y = 30;
 
     addSection(10, 'Limitação de Responsabilidade',
       'A CONTRATADA não se responsabiliza por resultados que dependam exclusivamente de fatores externos ao seu controle, tais como sazonalidade do mercado, mudanças de algoritmos de plataformas de terceiros, crises econômicas ou inação da CONTRATANTE no cumprimento de suas obrigações.');
@@ -1239,7 +1230,8 @@ async function gerarPDF() {
       'O presente contrato, assinado eletronicamente pelas partes, tem plena validade jurídica nos termos da Lei nº 14.063/2020. A assinatura eletrônica possui a mesma validade da assinatura manuscrita.');
 
     // ── SIGNATURE BLOCK ─────────────────────────────
-    const sigY = H - 88;
+    let sigY = y + 6;
+    if (sigY + 74 > H - 16) { doc.addPage(); pageHeader(doc, W, ML, MR); sigY = 30; }
 
     // Background panel
     setFill(C.paper); doc.rect(ML, sigY, TW, 74, 'F');
@@ -1279,7 +1271,8 @@ async function gerarPDF() {
     setTxt([170, 180, 200]); doc.setFontSize(6).setFont('helvetica','normal');
     doc.text('Documento gerado eletronicamente pelo Nexo Presenter  ·  Growth Engine®  ·  Nexo Consultoria & Growth', W / 2, sigY + 70, { align: 'center' });
 
-    pageFooter(doc, W, H, ML, 4);
+    const nPages = doc.getNumberOfPages();
+    for (let pg = 1; pg <= nPages; pg++) { doc.setPage(pg); pageFooter(doc, W, H, ML, pg, nPages); }
 
     // ── SAVE ───────────────────────────────────────
     const filename = `Contrato_GrowthEngine_${cliente.razao.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)}_${plano}.pdf`;
@@ -1320,7 +1313,7 @@ function pageHeader(doc, W, ML, MR) {
   doc.text('NEXO  CONSULTORIA & GROWTH  ·  GROWTH ENGINE®', ML + 2, 5.8);
 }
 
-function pageFooter(doc, W, H, ML, num) {
+function pageFooter(doc, W, H, ML, num, total) {
   // Thin rule
   doc.setDrawColor(200, 150, 30);
   doc.setLineWidth(0.5);
@@ -1332,7 +1325,7 @@ function pageFooter(doc, W, H, ML, num) {
   // Right: page number
   doc.setTextColor(13, 27, 62);
   doc.setFontSize(7).setFont('helvetica','bold');
-  doc.text(`${num} / 4`, W - ML, H - 7, { align: 'right' });
+  doc.text(`${num} / ${total}`, W - ML, H - 7, { align: 'right' });
 }
 
 function today() {
@@ -1397,32 +1390,37 @@ function addMonthsClamp(date, n) {
   return d;
 }
 
+const PLANOS = {
+  BASE: { tipo: 'Consultoria', canaisAds: '01 (um) canal de gestão de publicidade', reunioes: 'semanais', sla: '4h úteis', limiteAds: 'R$ 15.000,00',
+    solucoes: '1 (uma) solução tecnológica', canaisVenda: '01 (um) canal de vendas (marketplace)', planejamento: 'anual',
+    cadastro: 'até 10 (dez) produtos por mês',
+    extra: ['Gerenciamento completo da conta por 3 (três) meses, incluindo acompanhamento diário de campanhas, ajustes de lances e segmentação'] },
+  ESCALE: { tipo: 'Consultoria + Gestão de Publicidade', canaisAds: '02 (dois) canais de gestão de publicidade: Mercado Ads e Shopee Ads', reunioes: 'semanais', sla: '2h úteis', limiteAds: 'R$ 30.000,00',
+    solucoes: '2 (duas) soluções tecnológicas', canaisVenda: '02 (dois) canais de vendas (marketplaces)', planejamento: 'semestral',
+    disparos: '2 (dois) por mês', adsExternos: 'mensal', minhaPagina: 'trimestral' },
+  GROWTH: { tipo: 'Assessoria Estratégica + Gestão de Publicidade', canaisAds: 'Product Ads, Follow/Brand Ads, Display Ads e Video Ads', reunioes: 'ilimitadas', sla: '1h útil', limiteAds: 'R$ 60.000,00',
+    solucoes: '4 (quatro) soluções tecnológicas', canaisVenda: 'multicanal (múltiplos marketplaces)', planejamento: 'trimestral',
+    disparos: '5 (cinco) por mês', adsExternos: 'semanal', minhaPagina: 'quinzenal', cadastro: 'até 15 (quinze) produtos por mês', otimizacao: true },
+};
+
 function scopeByPlan(plano) {
-  const scopes = {
-    BASE: `• Gestão de 1 canal de tráfego pago (Google Ads ou Meta Ads)
-• Criação de até 4 peças criativas por mês
-• Progressão e otimização de presença em marketplaces (Mercado Livre, Shopee ou Amazon): cadastro e organização de produtos, melhoria de títulos, descrições e imagens para maior conversão
-• Gerenciamento completo da conta de tráfego por 3 (três) meses, incluindo acompanhamento diário de campanhas, ajustes de lances e segmentação
-• 1 reunião mensal de alinhamento e resultados
-• Relatório mensal de desempenho (KPIs)
-• Suporte via WhatsApp em horário comercial`,
-    ESCALE: `• Gestão de 2 canais de tráfego pago (Google Ads + Meta Ads)
-• Criação de até 10 peças criativas por mês
-• Estratégia de funil completo (topo, meio e fundo)
-• 2 reuniões mensais de alinhamento e resultados
-• Relatório quinzenal de desempenho (KPIs)
-• Otimização de landing pages e CRO básico
-• Suporte via WhatsApp em horário comercial`,
-    GROWTH: `• Gestão completa: Google Ads, Meta Ads e LinkedIn Ads
-• Criação ilimitada de peças criativas e vídeos curtos
-• Estratégia full-funnel + automações de marketing
-• Reuniões semanais de alinhamento e revisão de resultados
-• Dashboard em tempo real de performance
-• Otimização avançada de landing pages, CRO e SEO
-• Consultoria estratégica de posicionamento e branding
-• Suporte prioritário com canal exclusivo WhatsApp`
-  };
-  return scopes[plano] || scopes.ESCALE;
+  const p = PLANOS[plano] || PLANOS.ESCALE;
+  const l = [
+    `Tipo de serviço: ${p.tipo}`,
+    `Gestão de publicidade (Ads): ${p.canaisAds}, com limite de investimento sob gestão de ${p.limiteAds}`,
+    `Gestão dos canais de vendas em marketplaces: ${p.canaisVenda}`,
+    `Reuniões ${p.reunioes} de alinhamento e resultados`,
+    `Grupo de WhatsApp para atendimento, com tempo máximo de resposta (SLA) de ${p.sla}`,
+    `Soluções tecnológicas: ${p.solucoes}`,
+    `Planejamento estratégico ${p.planejamento}`,
+  ];
+  if (p.disparos) l.push(`Disparos para a base de clientes: ${p.disparos}`);
+  if (p.adsExternos) l.push(`Gestão de Ads em outras plataformas (TikTok, Google, Facebook, entre outras): periodicidade ${p.adsExternos}`);
+  if (p.minhaPagina) l.push(`Minha Página — manutenção ${p.minhaPagina}`);
+  if (p.cadastro) l.push(`Cadastro de produtos nos marketplaces: ${p.cadastro}`);
+  if (p.otimizacao) l.push('Otimização de cadastros (títulos, descrições, imagens e ficha técnica) para maior conversão');
+  (p.extra || []).forEach(x => l.push(x));
+  return l.map(x => '• ' + x).join('\n');
 }
 
 // ── TOAST ─────────────────────────────────────────────
@@ -1584,7 +1582,7 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
       setTxt(C.body); doc.setFontSize(8.2).setFont('helvetica','normal');
       const lines = doc.splitTextToSize(body, TW - 2);
       for (const ln of lines) {
-        if (y > H - 28) { doc.addPage(); bhHeader(doc); y = 24; }
+        if (y > H - 28) { doc.addPage(); bhHeader(doc); y = 24; setTxt(C.body); doc.setFontSize(8.2).setFont('helvetica','normal'); }
         doc.text(ln, ML + 2, y);
         y += isList ? 5.2 : 5;
       }

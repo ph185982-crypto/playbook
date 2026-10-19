@@ -13,6 +13,14 @@ module.exports = async function handler(req, res) {
   const { action } = body;
 
   let url, method = 'GET', payload;
+  if (action === 'status') {
+    try {
+      const r = await fetch(`${BASE}/docs/`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'nexo-presenter/1.0' }, body: '{}' });
+      if (r.status === 402) return res.status(200).json({ plan_active: false, message: 'Plano de API do ZapSign inativo nesta conta: o envio automático só funciona depois que o plano estiver ativo.' });
+      if (r.status === 401 || r.status === 403) return res.status(200).json({ plan_active: false, message: 'Token do ZapSign inválido. Atualize ZAPSIGN_TOKEN na Vercel.' });
+      return res.status(200).json({ plan_active: true });
+    } catch (e) { return res.status(502).json({ error: 'upstream_error' }); }
+  }
   switch (action) {
     case 'list': {
       const q = new URLSearchParams({ include_signers: 'true', sort_order: 'desc', deleted: 'false' });

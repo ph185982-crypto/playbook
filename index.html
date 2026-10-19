@@ -564,7 +564,7 @@ body.laser-active #laser-canvas{pointer-events:none}
   <div class="form-section-label" style="margin-top:22px">Assinatura Eletrônica (ZapSign)</div>
   <label class="zs-opt"><input type="checkbox" id="zs-auto" checked> Enviar ao cliente por WhatsApp/e-mail ao gerar</label>
   <div class="fg" style="margin-top:10px">
-    <label for="f-nexo-email">E-mail da Nexo para assinar também (opcional)</label>
+    <label for="f-nexo-email">E-mail da Nexo — assina todos os contratos como CONTRATADA</label>
     <input type="email" id="f-nexo-email" placeholder="seu@email.com">
   </div>
   <button type="button" class="zs-btn" id="btn-zs-send" disabled>Enviar último contrato para assinatura</button>
@@ -1277,11 +1277,10 @@ async function gerarPDF() {
     // ── SAVE ───────────────────────────────────────
     const filename = `Contrato_GrowthEngine_${cliente.razao.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)}_${plano}.pdf`;
     doc.save(filename);
-    await afterPDF(doc, filename, cliente);
-
     btn.textContent = '✓ Contrato gerado!';
     btn.classList.add('success');
     showToast('Contrato PDF baixado com sucesso!');
+    await afterPDF(doc, filename, cliente);
     setTimeout(() => {
       btn.textContent = 'Gerar Contrato PDF';
       btn.classList.remove('success');
@@ -1690,7 +1689,9 @@ let lastContract = null;
 let editing = null; // histórico entry being edited
 const btnZsSend = document.getElementById('btn-zs-send');
 const fNexoEmail = document.getElementById('f-nexo-email');
-try { fNexoEmail.value = localStorage.getItem('nexo_contratada_email') || ''; } catch (_) {}
+const NEXO_EMAIL_DEFAULT = 'ph185982@gmail.com';
+fNexoEmail.value = NEXO_EMAIL_DEFAULT;
+try { const saved = localStorage.getItem('nexo_contratada_email'); if (saved !== null) fNexoEmail.value = saved; } catch (_) {}
 fNexoEmail.addEventListener('change', () => { try { localStorage.setItem('nexo_contratada_email', fNexoEmail.value.trim()); } catch (_) {} });
 
 const HIST_KEY = 'nexo_history_v1';
@@ -1771,6 +1772,12 @@ async function afterPDF(doc, filename, cliente) {
   if (document.getElementById('zs-auto').checked) await enviarZapSign();
 }
 
+function zsFolder(form, razao) {
+  const modelo = form && form.modelo === 'barbearia' ? 'Barbearia' : 'Growth Engine';
+  const cli = (razao || 'Sem nome').replace(/[\\\/\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50) || 'Sem nome';
+  return `/Contratos Nexo/${modelo}/${cli}/`;
+}
+
 async function enviarZapSign() {
   if (!lastContract) return;
   const { base64, filename, cliente, entry, prev } = lastContract;
@@ -1788,10 +1795,11 @@ async function enviarZapSign() {
     const nexoEmail = fNexoEmail.value.trim();
     if (nexoEmail) signers.push({ name: 'Pedro Henrique Martins da Silva', email: nexoEmail, auth_mode: 'assinaturaTela', send_automatic_email: true, blank_phone: true });
 
+    const folder = zsFolder(entry.form, cliente.razao);
     const res = await zs('create', { document: {
-      name: filename, base64_pdf: base64, lang: 'pt-br', signers,
+      name: filename, base64_pdf: base64, lang: 'pt-br', signers, folder_path: folder,
     }});
-    histUpdate(entry.id, { zsToken: res.token, sentAt: new Date().toISOString() });
+    histUpdate(entry.id, { zsToken: res.token, sentAt: new Date().toISOString(), folder });
     showToast('Contrato enviado para assinatura via ZapSign!');
 
     const oldTok = prev && prev.zsToken;
@@ -1823,12 +1831,12 @@ function itemHTML({ title, meta, zsDoc, entry }) {
   if (entry) btns.push('<button data-act="edit">Editar</button>');
   if (zsDoc && st === 'pending') {
     btns.push('<button data-act="resend">Reenviar link</button>');
-    if (link) btns.push('<button data-act="copy">Copiar link</button>');
+    if (link) btns.push('<button data-act="copy">Copiar link</button><button data-act="wpp">Enviar no WhatsApp</button>');
     btns.push('<button data-act="cancel">Cancelar</button>');
   }
   if (zsDoc && st === 'signed' && zsDoc.signed_file) btns.push(`<a href="${esc(zsDoc.signed_file)}" target="_blank" rel="noopener"><button type="button">Baixar assinado</button></a>`);
   if (entry) btns.push('<button data-act="remove">Remover</button>');
-  return `<div class="zs-item" data-id="${esc(entry ? entry.id : '')}" data-token="${esc(zsDoc ? zsDoc.token : '')}" data-link="${esc(link ? link.link_para_assinar : '')}">
+  return `<div class="zs-item" data-id="${esc(entry ? entry.id : '')}" data-token="${esc(zsDoc ? zsDoc.token : '')}" data-link="${esc(link ? link.link_para_assinar : '')}" data-phone="${esc((entry && entry.form && entry.form.whats) || (zsDoc && (zsDoc.signers || [])[0] && (zsDoc.signers || [])[0].telefone) || '')}" data-rep="${esc((entry && entry.form && entry.form.rep) || '')}">
     <div class="zs-item-top"><span class="zs-item-name">${esc(title)}</span><span class="zs-status ${esc(st)}">${esc(label)}</span></div>
     <div class="zs-meta">${meta}</div>${sg ? `<div class="zs-meta">${sg}</div>` : ''}
     <div class="zs-actions">${btns.join('')}</div></div>`;
@@ -1837,7 +1845,8 @@ function itemHTML({ title, meta, zsDoc, entry }) {
 async function listarHistorico() {
   const box = document.getElementById('zs-list');
   box.innerHTML = '<div class="btn-sub">Carregando…</div>';
-  let zsDocs = [], zsErr = '';
+  let zsDocs = [], zsErr = '', planMsg = '';
+  try { const st = await zs('status'); if (!st.plan_active) planMsg = st.message; } catch (_) {}
   try {
     const data = await zs('list');
     zsDocs = Array.isArray(data) ? data : (data.results || []);
@@ -1848,22 +1857,25 @@ async function listarHistorico() {
   const used = new Set();
   const hist = histLoad();
   const parts = [];
+  if (planMsg) parts.push(`<div class="zs-meta" style="color:#B91C1C;font-weight:600">${esc(planMsg)}</div>`);
   if (zsErr) parts.push(`<div class="zs-meta">Status do ZapSign indisponível (${esc(zsErr)}). Mostrando apenas o histórico local.</div>`);
 
   if (hist.length) parts.push('<div class="zs-sec">Contratos emitidos aqui</div>');
+  const match = new Map();
+  hist.forEach(e => { const z = e.zsToken && byToken.get(e.zsToken); if (z) { match.set(e.id, z); used.add(z.token); } });
+  hist.forEach(e => { if (match.has(e.id) || e.zsToken) return; const z = byName.get(e.filename); if (z && !used.has(z.token)) { match.set(e.id, z); used.add(z.token); } });
   hist.forEach(e => {
-    const z = (e.zsToken && byToken.get(e.zsToken)) || byName.get(e.filename) || null;
-    if (z) used.add(z.token);
+    const z = match.get(e.id) || null;
     const f = e.form || {};
     parts.push(itemHTML({
       title: f.razao || f.fantasia || e.filename,
-      meta: `${esc(f.modelo === 'barbearia' ? 'Barbearia' : 'Growth Engine · ' + (f.plano || ''))} · R$ ${esc(f.preco)} · ${esc(fmtDate(e.createdAt))}`,
+      meta: `${esc(f.modelo === 'barbearia' ? 'Barbearia' : 'Growth Engine · ' + (f.plano || ''))} · R$ ${esc(f.preco)} · ${esc(fmtDate(e.createdAt))}${z && z.folder_path && z.folder_path !== '/' ? '<br>📁 ' + esc(z.folder_path) : ''}`,
       zsDoc: z, entry: e }));
   });
 
   const others = zsDocs.filter(d => !used.has(d.token));
   if (others.length) parts.push('<div class="zs-sec">Outros documentos no ZapSign</div>');
-  others.forEach(d => parts.push(itemHTML({ title: d.name, meta: esc(fmtDate(d.created_at)), zsDoc: d, entry: null })));
+  others.forEach(d => parts.push(itemHTML({ title: d.name, meta: esc(fmtDate(d.created_at)) + (d.folder_path && d.folder_path !== '/' ? '<br>📁 ' + esc(d.folder_path) : ''), zsDoc: d, entry: null })));
 
   box.innerHTML = parts.length ? parts.join('') : '<div class="btn-sub">Nenhum contrato ainda.</div>';
 }
@@ -1885,6 +1897,11 @@ document.getElementById('zs-list').addEventListener('click', async ev => {
     } else if (act === 'remove') {
       if (!confirm('Remover do histórico local? (não afeta o ZapSign)')) return;
       histSave(histLoad().filter(x => x.id !== id)); listarHistorico();
+    } else if (act === 'wpp') {
+      const { phone, rep } = item.dataset;
+      const tel = splitPhone(phone).phone_number;
+      const msg = `Olá${rep ? ', ' + rep.split(' ')[0] : ''}! Segue o contrato da Nexo Consultoria para assinatura eletrônica: ${link}`;
+      window.open(`https://wa.me/${tel.length >= 10 ? '55' + tel : ''}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
     } else if (act === 'copy') {
       await navigator.clipboard.writeText(link); showToast('Link de assinatura copiado.');
     } else if (act === 'cancel') {

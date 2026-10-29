@@ -22,7 +22,7 @@ async function cs(token, path, method = 'GET', body) {
 async function listAllFolders(token) {
   const out = [];
   for (let page = 1; page <= 20; page++) {
-    const d = await cs(token, `/folders?page[number]=${page}&page[size]=100`);
+    const d = await cs(token, `/folders?page[number]=${page}&page[size]=50`);
     const items = d.data || [];
     out.push(...items);
     const total = (d.meta && d.meta.record_count) || 0;

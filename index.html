@@ -1070,7 +1070,7 @@ async function gerarPDF() {
     }
 
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
     const W = 210, H = 297;
     const ML = 20, MR = 20;
@@ -1521,7 +1521,7 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
   const btn = document.getElementById('btn-gerar');
   try {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
     const W = 210, H = 297, ML = 20, MR = 20, TW = W - ML - MR;
     const dateStr = formatDate(cliente.inicio);

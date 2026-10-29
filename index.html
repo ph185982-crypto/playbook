@@ -257,7 +257,7 @@ body.laser-active #laser-canvas{pointer-events:none}
 .pgto2-label{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
 
 /* Plan cards */
-.plans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0 20px}
+.plans-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin:12px 0 20px}
 .plan-card {
   border:2px solid var(--border);
   padding:16px 14px;cursor:pointer;
@@ -447,8 +447,16 @@ body.laser-active #laser-canvas{pointer-events:none}
     </label>
   </div>
 
-  <!-- 2nd payment timing (barbearia only) -->
-  <div id="pgto2-wrap" style="display:none">
+  <div class="fg" style="margin:0 0 18px">
+    <label for="f-marca">Marca da contratada no contrato</label>
+    <select id="f-marca">
+      <option value="nexo">Nexo Consultoria &amp; Growth</option>
+      <option value="avanteza">Avanteza Consultoria e Estratégia</option>
+    </select>
+  </div>
+
+  <!-- 2nd payment timing -->
+  <div id="pgto2-wrap">
     <div class="form-section-label">2º Pagamento (após assinatura)</div>
     <div class="pgto2-selector">
       <label class="pgto2-card" id="pgto2-30">
@@ -525,6 +533,12 @@ body.laser-active #laser-canvas{pointer-events:none}
       <div class="plan-price">R$4.497<sub>/mês</sub></div>
       <span class="model-card-desc">Assessoria Estratégica + Gestão de Publicidade</span>
     </label>
+    <label class="plan-card" id="pc-marketplace">
+      <input type="radio" name="plan" value="MARKETPLACE" data-price="1.997,00" data-renov="2.799,99">
+      <span class="plan-name">MARKETPLACE</span>
+      <div class="plan-price">R$1.997<sub>/mês</sub></div>
+      <span class="model-card-desc">3 canais: Mercado Livre, Shopee e TikTok Shop</span>
+    </label>
   </div>
 
   <!-- Custom price -->
@@ -532,6 +546,10 @@ body.laser-active #laser-canvas{pointer-events:none}
     <div class="fg" style="grid-column:1/-1">
       <label for="f-preco">Valor mensal negociado (R$) <span style="color:var(--gold);font-size:9px;letter-spacing:.1em">EDITÁVEL</span></label>
       <input type="text" id="f-preco" placeholder="Ex: 2.500,00" autocomplete="off">
+    </div>
+    <div class="fg" style="grid-column:1/-1">
+      <label for="f-renov">Valor mensal em caso de renovação (R$, opcional)</label>
+      <input type="text" id="f-renov" placeholder="Ex: 2.799,99" autocomplete="off">
     </div>
   </div>
 
@@ -548,21 +566,32 @@ body.laser-active #laser-canvas{pointer-events:none}
     </div>
     <div class="fg">
       <label for="f-venc">Vencimento mensal (dia)</label>
-      <input type="number" id="f-venc" placeholder="Ex: 10" min="1" max="28">
+      <input type="number" id="f-venc" placeholder="Ex: 10" min="1" max="31">
     </div>
   </div>
+  <label class="zs-opt"><input type="checkbox" id="f-garantia"> Incluir Garantia de Execução: restituição integral dos valores pagos se não houver nenhuma venda durante a vigência</label>
 
   <button id="btn-gerar" disabled>Gerar Contrato PDF</button>
   <p class="btn-sub">O PDF será baixado automaticamente após a geração</p>
 
   <div id="edit-banner" style="display:none">
     <div><strong>Editando:</strong> <span id="edit-banner-name"></span></div>
-    <label class="zs-opt" style="margin-top:6px;font-weight:500"><input type="checkbox" id="cancel-old" checked> Cancelar a versão anterior no ZapSign ao enviar a nova</label>
+    <label class="zs-opt" style="margin-top:6px;font-weight:500"><input type="checkbox" id="cancel-old" checked> Cancelar a versão anterior na plataforma de assinatura ao enviar a nova</label>
     <button type="button" id="edit-banner-x">Descartar edição</button>
   </div>
 
-  <div class="form-section-label" style="margin-top:22px">Assinatura Eletrônica (ZapSign)</div>
-  <label class="zs-opt"><input type="checkbox" id="zs-auto" checked> Enviar ao cliente por WhatsApp/e-mail ao gerar</label>
+  <div class="form-section-label" style="margin-top:22px">Assinatura Eletrônica</div>
+  <div class="form-grid" style="margin-top:6px">
+    <div class="fg">
+      <label for="f-assin">Plataforma de assinatura</label>
+      <select id="f-assin"><option value="clicksign">ClickSign</option><option value="zapsign">ZapSign</option></select>
+    </div>
+    <div class="fg">
+      <label for="f-canal">Enviar ao cliente por</label>
+      <select id="f-canal"><option value="email">E-mail</option><option value="whatsapp">WhatsApp</option></select>
+    </div>
+  </div>
+  <label class="zs-opt"><input type="checkbox" id="zs-auto" checked> Enviar para assinatura automaticamente ao gerar</label>
   <div class="fg" style="margin-top:10px">
     <label for="f-nexo-email">E-mail da Nexo — assina todos os contratos como CONTRATADA</label>
     <input type="email" id="f-nexo-email" placeholder="seu@email.com">
@@ -920,7 +949,6 @@ document.querySelectorAll('.model-card').forEach(card => {
     card.classList.add('selected');
     card.querySelector('input').checked = true;
     const modelo = getModelo();
-    pgto2Wrap.style.display = modelo === 'barbearia' ? '' : 'none';
     validateForm();
   });
 });
@@ -945,6 +973,7 @@ document.querySelectorAll('.plan-card').forEach(card => {
     radio.checked = true;
     // fill the editable price field with the plan's default price
     fPreco.value = radio.dataset.price;
+    document.getElementById('f-renov').value = radio.dataset.renov || '';
     validateForm();
   });
 });
@@ -1027,7 +1056,12 @@ async function gerarPDF() {
     duracaoExtenso: mesesPorExtenso(duracaoMeses),
     fimStr,
     primeiraParcelaStr,
+    renov:    fmtBRL(document.getElementById('f-renov').value.trim()),
+    garantia: document.getElementById('f-garantia').checked,
+    marca:    document.getElementById('f-marca').value,
   };
+  CUR_BRAND = BRANDS[cliente.marca] || BRANDS.nexo;
+  const sched = calcCronograma(cliente.inicio, pgto2Dias, duracaoMeses);
 
   try {
     if (modelo === 'barbearia') {
@@ -1071,18 +1105,16 @@ async function gerarPDF() {
 
     // Brand eyebrow
     setTxt(C.gold); doc.setFontSize(7).setFont('helvetica','bold');
-    doc.text('NEXO CONSULTORIA & GROWTH', ML + 2, 22);
+    doc.text(CUR_BRAND.eyebrow, ML + 2, 22);
 
     // Main brand name
     setTxt(C.white); doc.setFontSize(28).setFont('helvetica','bold');
-    doc.text('Growth Engine', ML + 2, 46);
-    // ® superscript
-    doc.setFontSize(13);
-    doc.text('®', ML + 2 + doc.getStringUnitWidth('Growth Engine') * 28 * 0.352778 + 1, 40);
+    doc.text(CUR_BRAND.title, ML + 2, 46);
+    if (CUR_BRAND.reg) { doc.setFontSize(13); doc.text('®', ML + 2 + doc.getStringUnitWidth(CUR_BRAND.title) * 28 * 0.352778 + 1, 40); }
 
     // Tagline
     setTxt([180, 195, 225]); doc.setFontSize(8).setFont('helvetica','normal');
-    doc.text('Gestão de Marketplaces & Publicidade Digital  ·  Consultoria e Aceleração de Vendas', ML + 2, 58);
+    doc.text(CUR_BRAND.tagline, ML + 2, 58);
 
     // Thin gold bottom accent on header
     setFill(C.gold); doc.rect(0, 80, W, 2.5, 'F');
@@ -1126,14 +1158,17 @@ async function gerarPDF() {
     setTxt(C.gold); doc.setFontSize(6.5).setFont('helvetica','bold');
     doc.text('CONTRATADA', cx2 + 5, cardY + 8);
     setTxt(C.white); doc.setFontSize(9).setFont('helvetica','bold');
-    doc.text('NEXO CONSULTORIA LTDA', cx2 + 5, cardY + 16);
+    const ctdLines = doc.splitTextToSize(CONTRATADA.razao, colW - 10);
+    doc.text(ctdLines, cx2 + 5, cardY + 16);
+    let cy = cardY + 16 + ctdLines.length * 4.5 + 2;
     setTxt([180, 195, 225]); doc.setFontSize(7.5).setFont('helvetica','normal');
-    doc.text('CNPJ: 51.112.136/0001-24', cx2 + 5, cardY + 23);
-    doc.text('Rep.: Pedro Henrique Martins da Silva', cx2 + 5, cardY + 29);
-    doc.text('Goiânia – GO', cx2 + 5, cardY + 35);
+    doc.text(`Nome fantasia: ${CUR_BRAND.fantasia}`, cx2 + 5, cy, { maxWidth: colW - 10 }); cy += 5.5;
+    doc.text(`CNPJ: ${CONTRATADA.cnpj}`, cx2 + 5, cy); cy += 5.5;
+    doc.text(`Rep.: ${CONTRATADA.rep}`, cx2 + 5, cy); cy += 5.5;
+    doc.text(CONTRATADA.cidade, cx2 + 5, cy);
     // decorative "N" watermark
     setTxt([27, 45, 90]); doc.setFontSize(52).setFont('helvetica','bold');
-    doc.text('N', cx2 + colW - 26, cardY + cardH - 6);
+    doc.text(CUR_BRAND.mark, cx2 + colW - 26, cardY + cardH - 6);
 
     // ── PLAN HIGHLIGHT ──────────────────────────────
     const planY = 198;
@@ -1148,7 +1183,7 @@ async function gerarPDF() {
 
     // Plan name big
     setTxt(C.white); doc.setFontSize(22).setFont('helvetica','bold');
-    doc.text(`Growth Engine® ${cliente.plano}`, ML + 8, planY + 22);
+    doc.text((PLANOS[cliente.plano] || PLANOS.ESCALE).nome, ML + 8, planY + 22);
 
     // Price right-aligned
     setTxt(C.gold); doc.setFontSize(16).setFont('helvetica','bold');
@@ -1156,7 +1191,7 @@ async function gerarPDF() {
 
     // Details row
     setTxt([180, 195, 225]); doc.setFontSize(7.5).setFont('helvetica','normal');
-    doc.text(`Vigência: ${cliente.duracao} meses  ·  Início: ${dateStr}  ·  Vencimento: todo dia ${cliente.venc}`, ML + 8, planY + 32);
+    doc.text(`Vigência: ${cliente.duracao} meses  ·  1º pagamento na assinatura  ·  2º em ${sched.pgto2Str}  ·  Demais: todo dia ${sched.diaRec}`, ML + 8, planY + 32);
 
     // Validity note
     setTxt([130, 150, 190]); doc.setFontSize(6.5);
@@ -1195,12 +1230,12 @@ async function gerarPDF() {
     doc.addPage(); pageHeader(doc, W, ML, MR); y = 30;
 
     addSection(1, 'Objeto do Contrato',
-      `O presente contrato tem por objeto a prestação de serviços de consultoria e gestão de canais de vendas em marketplaces (Mercado Livre, Shopee e demais canais contratados), incluindo a gestão de publicidade paga (Ads) nesses canais, por meio da metodologia exclusiva Growth Engine®, no plano ${cliente.plano} (${(PLANOS[cliente.plano] || PLANOS.ESCALE).tipo}), conforme descrito neste instrumento.`);
+      `O presente contrato tem por objeto a prestação de serviços de consultoria e gestão de canais de vendas em marketplaces (Mercado Livre, Shopee e demais canais contratados), incluindo a gestão de publicidade paga (Ads) nesses canais, por meio ${CUR_BRAND.metodologia}, no âmbito do ${(PLANOS[cliente.plano] || PLANOS.ESCALE).nome} (${(PLANOS[cliente.plano] || PLANOS.ESCALE).tipo}), conforme descrito neste instrumento.`);
 
     addSection(2, `Escopo de Serviços — Plano ${cliente.plano}`, scopeByPlan(cliente.plano), true);
 
     addSection(3, 'Prazo de Vigência',
-      `O contrato terá duração de ${cliente.duracao} (${cliente.duracaoExtenso}) meses, com início em ${dateStr} e encerramento em ${cliente.fimStr}, podendo ser renovado mediante acordo entre as partes com antecedência mínima de 30 dias.`);
+      `O contrato terá duração de ${cliente.duracao} (${cliente.duracaoExtenso}) meses, com início em ${dateStr} e encerramento em ${cliente.fimStr}, podendo ser renovado mediante acordo entre as partes com antecedência mínima de 30 dias.${cliente.renov ? ` Em caso de renovação, o valor mensal passará a ser de R$ ${cliente.renov} (${valorPorExtenso(cliente.renov)}), conforme proposta comercial aceita pela CONTRATANTE.` : ''}`);
 
     addSection(4, 'Exclusividade e Confidencialidade',
       'A CONTRATADA compromete-se a manter sigilo absoluto sobre todas as informações estratégicas, comerciais, financeiras e operacionais da CONTRATANTE obtidas no decorrer deste contrato, conforme a Lei Geral de Proteção de Dados — Lei nº 13.709/2018.');
@@ -1209,24 +1244,30 @@ async function gerarPDF() {
       'Todos os materiais, estratégias e conteúdos criados pela CONTRATADA durante a vigência do contrato são de propriedade da CONTRATANTE após o pagamento integral de cada competência, exceto metodologias, frameworks e processos internos da CONTRATADA, que permanecem de sua exclusiva propriedade intelectual.');
 
     addSection(6, 'Valor e Forma de Pagamento',
-      `6.1 ENTRADA / IMPLEMENTAÇÃO: O valor de entrada é equivalente a 1 (uma) mensalidade do plano contratado — R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}) — e é devido na assinatura deste contrato. Cobre a configuração de estratégias, estruturação de processos e onboarding da equipe NEXO. Por tratar-se de serviço já prestado no início da vigência, não é reembolsável em nenhuma hipótese.\n\n6.2 MENSALIDADE: O valor mensal dos serviços é de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}), com início de cobrança em ${cliente.primeiraParcelaStr} (30 dias após o início do contrato) e vencimento subsequente todo dia ${cliente.venc} de cada mês, mediante PIX, transferência bancária ou boleto emitido pela CONTRATADA.\n\n6.3 INADIMPLÊNCIA: O atraso no pagamento implica cobrança de multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.`);
+      `6.1 1º PAGAMENTO (ENTRADA / IMPLEMENTAÇÃO): O 1º pagamento, no valor de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}), equivalente a 1 (uma) mensalidade, é devido na assinatura deste contrato (${dateStr}). Cobre a configuração de estratégias, estruturação de processos e onboarding da equipe da CONTRATADA.\n\n` +
+      `6.2 DEMAIS PARCELAS: O valor mensal dos serviços é de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}). O 2º pagamento vence ${sched.pgto2Dias} dias após a assinatura (${sched.pgto2Str}) e os seguintes todo dia ${sched.diaRec} de cada mês${sched.diaRec > 28 ? ' (ou no último dia do mês, quando este não existir)' : ''}, totalizando ${cliente.duracao} (${cliente.duracaoExtenso}) parcelas ao longo da vigência. Cronograma: ${sched.cronograma}.\n\n` +
+      `6.3 FORMA DE PAGAMENTO: Os pagamentos serão realizados por meio de link de pagamento enviado pela CONTRATADA: o do 1º pagamento logo após a assinatura deste contrato e os demais antes de cada vencimento.\n\n` +
+      `6.4 INADIMPLÊNCIA: O atraso no pagamento implica cobrança de multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.`);
 
     addSection(7, 'Obrigações da Contratada',
-      `• Alocar equipe multidisciplinar dedicada ao projeto\n• Cumprir cronograma de entregas previamente acordado\n• Apresentar relatórios mensais de resultados e desempenho (KPIs)\n• Manter grupo de WhatsApp para atendimento, respeitando o tempo máximo de resposta (SLA) de ${(PLANOS[cliente.plano] || PLANOS.ESCALE).sla}\n• Respeitar os valores e a identidade da marca da CONTRATANTE`, true);
+      `• Alocar equipe multidisciplinar dedicada ao projeto\n• Cumprir cronograma de entregas previamente acordado\n• Apresentar relatórios mensais de resultados e desempenho (KPIs)${(PLANOS[cliente.plano] || PLANOS.ESCALE).sla ? `\n• Manter grupo de WhatsApp para atendimento, respeitando o tempo máximo de resposta (SLA) de ${(PLANOS[cliente.plano] || PLANOS.ESCALE).sla}` : '\n• Manter canal de atendimento via WhatsApp em horário comercial'}\n• Respeitar os valores e a identidade da marca da CONTRATANTE`, true);
 
     addSection(8, 'Obrigações da Contratante',
-      `• Fornecer à CONTRATADA acesso às contas dos marketplaces e plataformas de publicidade, bem como catálogo, estoque, preços e demais informações necessárias\n• Arcar diretamente com o investimento em publicidade (Ads) nas plataformas, o qual não está incluído na mensalidade, respeitado o limite de investimento sob gestão do plano contratado (${(PLANOS[cliente.plano] || PLANOS.ESCALE).limiteAds})\n• Aprovar ou solicitar revisões nos materiais em até 3 (três) dias úteis\n• Efetuar os pagamentos nos prazos acordados\n• Indicar um ponto focal responsável pela comunicação com a equipe NEXO\n• Respeitar o prazo mínimo de contrato`, true);
+      `• Fornecer à CONTRATADA acesso às contas dos marketplaces e plataformas de publicidade, bem como catálogo, estoque, preços e demais informações necessárias\n• Arcar diretamente com o investimento em publicidade (Ads) nas plataformas, o qual não está incluído na mensalidade${(PLANOS[cliente.plano] || PLANOS.ESCALE).limiteAds ? `, respeitado o limite de investimento sob gestão do plano contratado (${(PLANOS[cliente.plano] || PLANOS.ESCALE).limiteAds})` : ', com verba definida em conjunto entre as partes'}\n• Aprovar ou solicitar revisões nos materiais em até 3 (três) dias úteis\n• Efetuar os pagamentos nos prazos acordados\n• Indicar um ponto focal responsável pela comunicação com a equipe da CONTRATADA\n• Respeitar o prazo mínimo de contrato`, true);
 
     addSection(9, 'Rescisão',
-      `9.1 RESCISÃO PELA CONTRATANTE: A CONTRATANTE poderá rescindir este contrato a qualquer momento, sem incidência de multa ou juros, desde que notifique a CONTRATADA por escrito com antecedência mínima de 30 (trinta) dias. Neste caso, ficará devida exclusivamente a parcela do último mês de serviços prestados (equivalente aos 30 dias de atendimento em curso), sem qualquer outro encargo adicional.\n\n9.2 AUSÊNCIA DE AVISO PRÉVIO: Caso a CONTRATANTE não observe o prazo mínimo de aviso de 30 dias, fica devida a parcela correspondente aos 30 (trinta) dias de serviços que seriam prestados nesse período, a título de ressarcimento pela indisponibilização da equipe alocada, sem que isso configure multa.\n\n9.3 RESCISÃO PELA CONTRATADA: A CONTRATADA poderá rescindir este contrato por descumprimento das obrigações da CONTRATANTE, em especial inadimplência superior a 15 dias, mediante notificação por escrito, sem qualquer ônus para a CONTRATANTE além das parcelas já vencidas.\n\n9.4 Em nenhuma hipótese haverá devolução do valor de implementação (cláusula 6.1), por tratar-se de serviço já executado.`);
+      `9.1 RESCISÃO PELA CONTRATANTE: A CONTRATANTE poderá rescindir este contrato a qualquer momento, sem incidência de multa ou juros, desde que notifique a CONTRATADA por escrito com antecedência mínima de 30 (trinta) dias. Neste caso, ficará devida exclusivamente a parcela do último mês de serviços prestados (equivalente aos 30 dias de atendimento em curso), sem qualquer outro encargo adicional.\n\n9.2 AUSÊNCIA DE AVISO PRÉVIO: Caso a CONTRATANTE não observe o prazo mínimo de aviso de 30 dias, fica devida a parcela correspondente aos 30 (trinta) dias de serviços que seriam prestados nesse período, a título de ressarcimento pela indisponibilização da equipe alocada, sem que isso configure multa.\n\n9.3 RESCISÃO PELA CONTRATADA: A CONTRATADA poderá rescindir este contrato por descumprimento das obrigações da CONTRATANTE, em especial inadimplência superior a 15 dias, mediante notificação por escrito, sem qualquer ônus para a CONTRATANTE além das parcelas já vencidas.\n\n9.4 ${cliente.garantia ? 'Ressalvada a Garantia de Execução (cláusula 10), não haverá devolução do valor do 1º pagamento (cláusula 6.1)' : 'Em nenhuma hipótese haverá devolução do valor do 1º pagamento (cláusula 6.1)'}, por tratar-se de serviço já executado.`);
 
-    addSection(10, 'Limitação de Responsabilidade',
-      'A CONTRATADA não se responsabiliza por resultados que dependam exclusivamente de fatores externos ao seu controle, tais como sazonalidade do mercado, mudanças de algoritmos de plataformas de terceiros, crises econômicas ou inação da CONTRATANTE no cumprimento de suas obrigações.');
+    let secN = 10;
+    if (cliente.garantia) addSection(secN++, 'Garantia de Execução', garantiaTexto(cliente, 10));
 
-    addSection(11, 'Foro e Legislação Aplicável',
+    addSection(secN++, 'Limitação de Responsabilidade',
+      (cliente.garantia ? 'Ressalvada a Garantia de Execução prevista na cláusula 10, a' : 'A') + ' CONTRATADA não se responsabiliza por resultados que dependam exclusivamente de fatores externos ao seu controle, tais como sazonalidade do mercado, mudanças de algoritmos de plataformas de terceiros, crises econômicas ou inação da CONTRATANTE no cumprimento de suas obrigações.');
+
+    addSection(secN++, 'Foro e Legislação Aplicável',
       'As partes elegem o foro da comarca de Goiânia – GO para dirimir quaisquer dúvidas ou litígios decorrentes do presente contrato, com renúncia expressa a qualquer outro foro, por mais privilegiado que seja.');
 
-    addSection(12, 'Aceite e Validade Jurídica',
+    addSection(secN++, 'Aceite e Validade Jurídica',
       'O presente contrato, assinado eletronicamente pelas partes, tem plena validade jurídica nos termos da Lei nº 14.063/2020. A assinatura eletrônica possui a mesma validade da assinatura manuscrita.');
 
     // ── SIGNATURE BLOCK ─────────────────────────────
@@ -1259,23 +1300,23 @@ async function gerarPDF() {
     // Details below lines
     setTxt(C.ink); doc.setFontSize(8).setFont('helvetica','bold');
     doc.text(doc.splitTextToSize(cliente.razao, sc)[0], s1x, lineY + 7);
-    doc.text('NEXO CONSULTORIA LTDA', s2x, lineY + 7);
+    doc.setFontSize(7).text(doc.splitTextToSize(CONTRATADA.razao, sc)[0], s2x, lineY + 7);
 
     setTxt(C.muted); doc.setFontSize(7.2).setFont('helvetica','normal');
     doc.text(`CNPJ: ${cliente.cnpj}`, s1x, lineY + 13);
     doc.text(`Rep.: ${cliente.rep}`, s1x, lineY + 19, { maxWidth: sc });
-    doc.text('CNPJ: 51.112.136/0001-24', s2x, lineY + 13);
-    doc.text('Rep.: Pedro Henrique Martins da Silva', s2x, lineY + 19, { maxWidth: sc });
+    doc.text(`CNPJ: ${CONTRATADA.cnpj}  ·  ${CUR_BRAND.fantasia}`, s2x, lineY + 13, { maxWidth: sc });
+    doc.text(`Rep.: ${CONTRATADA.rep}`, s2x, lineY + 19, { maxWidth: sc });
 
     // Watermark footer note
     setTxt([170, 180, 200]); doc.setFontSize(6).setFont('helvetica','normal');
-    doc.text('Documento gerado eletronicamente pelo Nexo Presenter  ·  Growth Engine®  ·  Nexo Consultoria & Growth', W / 2, sigY + 70, { align: 'center' });
+    doc.text(`Documento gerado eletronicamente  ·  ${CUR_BRAND.gerado}`, W / 2, sigY + 70, { align: 'center' });
 
     const nPages = doc.getNumberOfPages();
     for (let pg = 1; pg <= nPages; pg++) { doc.setPage(pg); pageFooter(doc, W, H, ML, pg, nPages); }
 
     // ── SAVE ───────────────────────────────────────
-    const filename = `Contrato_GrowthEngine_${cliente.razao.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)}_${plano}.pdf`;
+    const filename = `Contrato_${CUR_BRAND.arquivo}_${cliente.razao.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)}_${plano}.pdf`;
     doc.save(filename);
     btn.textContent = '✓ Contrato gerado!';
     btn.classList.add('success');
@@ -1309,7 +1350,7 @@ function pageHeader(doc, W, ML, MR) {
   // Brand text
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(6.5).setFont('helvetica','bold');
-  doc.text('NEXO  CONSULTORIA & GROWTH  ·  GROWTH ENGINE®', ML + 2, 5.8);
+  doc.text(CUR_BRAND.header, ML + 2, 5.8);
 }
 
 function pageFooter(doc, W, H, ML, num, total) {
@@ -1320,7 +1361,7 @@ function pageFooter(doc, W, H, ML, num, total) {
   // Left: branding
   doc.setTextColor(100, 116, 135);
   doc.setFontSize(6.5).setFont('helvetica','normal');
-  doc.text('Growth Engine®  ·  Nexo Consultoria & Growth  ·  Confidencial', ML, H - 7);
+  doc.text(CUR_BRAND.footer, ML, H - 7);
   // Right: page number
   doc.setTextColor(13, 27, 62);
   doc.setFontSize(7).setFont('helvetica','bold');
@@ -1389,21 +1430,67 @@ function addMonthsClamp(date, n) {
   return d;
 }
 
+const CONTRATADA = { razao: '51.112.136 PEDRO HENRIQUE MARTINS DA SILVA', cnpj: '51.112.136/0001-24', rep: 'Pedro Henrique Martins da Silva', cidade: 'Goiânia – GO' };
+
+const BRANDS = {
+  nexo: { fantasia: 'Nexo Consultoria & Growth', eyebrow: 'NEXO CONSULTORIA & GROWTH', title: 'Growth Engine', reg: true,
+    tagline: 'Gestão de Marketplaces & Publicidade Digital  ·  Consultoria e Aceleração de Vendas',
+    header: 'NEXO  CONSULTORIA & GROWTH  ·  GROWTH ENGINE®', footer: 'Growth Engine®  ·  Nexo Consultoria & Growth  ·  Confidencial',
+    mark: 'N', metodologia: 'da metodologia exclusiva Growth Engine®', gerado: 'Growth Engine®  ·  Nexo Consultoria & Growth', arquivo: 'GrowthEngine' },
+  avanteza: { fantasia: 'Avanteza Consultoria e Estratégia', eyebrow: 'AVANTEZA  ·  CONSULTORIA E ESTRATÉGIA', title: 'Plano de Crescimento', reg: false,
+    tagline: 'Gestão de Marketplaces & Publicidade Digital  ·  Consultoria e Estratégia',
+    header: 'AVANTEZA  ·  CONSULTORIA E ESTRATÉGIA', footer: 'Avanteza Consultoria e Estratégia  ·  Confidencial',
+    mark: 'A', metodologia: 'da metodologia de trabalho da CONTRATADA', gerado: 'Avanteza Consultoria e Estratégia', arquivo: 'Avanteza' },
+};
+let CUR_BRAND = BRANDS.nexo;
+
+function calcCronograma(inicio, pgto2Dias, nParc) {
+  const ini = new Date(inicio + 'T00:00:00');
+  const p2 = new Date(ini); p2.setDate(p2.getDate() + pgto2Dias);
+  const n = parseInt(nParc) || 1;
+  const parts = Array.from({ length: n }, (_, i) => {
+    const dt = i === 0 ? formatDate(inicio) : formatDate(isoLocal(addMonthsClamp(p2, i - 1)));
+    return `${i + 1}ª parcela: ${dt}${i === 0 ? ' (assinatura)' : ''}`;
+  });
+  return { pgto2Dias, pgto2Str: formatDate(isoLocal(p2)), diaRec: p2.getDate(), cronograma: parts.join('; ') };
+}
+
+function garantiaTexto(cliente, n) {
+  return `${n}.1 A CONTRATADA oferece garantia contratual de execução: caso, ao longo dos ${cliente.duracao} (${cliente.duracaoExtenso}) meses de vigência deste contrato, os serviços prestados não gerem nenhum resultado, isto é, nenhuma venda nos canais de vendas geridos pela CONTRATADA, a CONTRATADA restituirá à CONTRATANTE a integralidade dos valores pagos a título de mensalidades durante esse período.\n\n` +
+    `${n}.2 A restituição será realizada em até 30 (trinta) dias contados da solicitação por escrito da CONTRATANTE, feita até o término da vigência, com base nos relatórios de vendas dos canais geridos.\n\n` +
+    `${n}.3 A garantia pressupõe o cumprimento, pela CONTRATANTE, das obrigações previstas neste contrato (acessos às contas, disponibilidade de produtos e estoque e pagamentos em dia) e não abrange os valores investidos diretamente pela CONTRATANTE em anúncios (Ads), pagos às plataformas.`;
+}
+
 const PLANOS = {
-  BASE: { tipo: 'Consultoria', canaisAds: '01 (um) canal de gestão de publicidade', reunioes: 'semanais', sla: '4h úteis', limiteAds: 'R$ 15.000,00',
+  BASE: { nome: 'Growth Engine® BASE', tipo: 'Consultoria', canaisAds: '01 (um) canal de gestão de publicidade', reunioes: 'semanais', sla: '4h úteis', limiteAds: 'R$ 15.000,00',
     solucoes: '1 (uma) solução tecnológica', canaisVenda: '01 (um) canal de vendas (marketplace)', planejamento: 'anual',
     cadastro: 'até 10 (dez) produtos por mês',
     extra: ['Gerenciamento completo da conta por 3 (três) meses, incluindo acompanhamento diário de campanhas, ajustes de lances e segmentação'] },
-  ESCALE: { tipo: 'Consultoria + Gestão de Publicidade', canaisAds: '02 (dois) canais de gestão de publicidade: Mercado Ads e Shopee Ads', reunioes: 'semanais', sla: '2h úteis', limiteAds: 'R$ 30.000,00',
+  ESCALE: { nome: 'Growth Engine® ESCALE', tipo: 'Consultoria + Gestão de Publicidade', canaisAds: '02 (dois) canais de gestão de publicidade: Mercado Ads e Shopee Ads', reunioes: 'semanais', sla: '2h úteis', limiteAds: 'R$ 30.000,00',
     solucoes: '2 (duas) soluções tecnológicas', canaisVenda: '02 (dois) canais de vendas (marketplaces)', planejamento: 'semestral',
     disparos: '2 (dois) por mês', adsExternos: 'mensal', minhaPagina: 'trimestral' },
-  GROWTH: { tipo: 'Assessoria Estratégica + Gestão de Publicidade', canaisAds: 'Product Ads, Follow/Brand Ads, Display Ads e Video Ads', reunioes: 'ilimitadas', sla: '1h útil', limiteAds: 'R$ 60.000,00',
+  GROWTH: { nome: 'Growth Engine® GROWTH', tipo: 'Assessoria Estratégica + Gestão de Publicidade', canaisAds: 'Product Ads, Follow/Brand Ads, Display Ads e Video Ads', reunioes: 'ilimitadas', sla: '1h útil', limiteAds: 'R$ 60.000,00',
     solucoes: '4 (quatro) soluções tecnológicas', canaisVenda: 'multicanal (múltiplos marketplaces)', planejamento: 'trimestral',
     disparos: '5 (cinco) por mês', adsExternos: 'semanal', minhaPagina: 'quinzenal', cadastro: 'até 15 (quinze) produtos por mês', otimizacao: true },
 };
 
+PLANOS.MARKETPLACE = { nome: 'Plano Marketplace [3 Canais]', tipo: 'Gestão de 3 canais de vendas: Mercado Livre, Shopee e TikTok Shop',
+  escopo: [
+    'Gestão de 3 (três) canais de vendas em marketplaces: Mercado Livre, Shopee e TikTok Shop',
+    'Revisão e correção dos anúncios atuais (marca, unidade e atributos) em até 7 (sete) dias após o kickoff',
+    'Cadastro de produtos ilimitado nos canais contratados, com catálogo padronizado, fotos, infográficos e clipes',
+    'Estruturação da Loja Oficial no Mercado Livre e proteção da marca nos canais',
+    'Gestão de publicidade nos canais: Mercado Ads, Shopee Ads e anúncios no TikTok Shop',
+    'Produção de conteúdo e edição dos vídeos, com vídeos curtos semanais',
+    'Linha editorial de lives (TikTok Shop e Shopee Live)',
+    'Reuniões semanais de resultados',
+    'Dashboard de resultados em tempo real (faturamento por canal, pedidos e ticket médio, posição nas buscas, anúncios e retorno, reputação, lives e afiliadas)',
+    'Plano de ação de 90 dias: mês 1, organização dos canais (diagnóstico, Loja Oficial, fichas corrigidas e catálogo nos 3 canais); mês 2, ativação (Ads por linha de produto, Full no Mercado Livre, grade de lives e embaixadoras como afiliadas); mês 3, escala (otimização do investimento, preço e margem por canal e política de preço com revendedores)',
+  ] };
+
 function scopeByPlan(plano) {
   const p = PLANOS[plano] || PLANOS.ESCALE;
+  if (p.escopo) return p.escopo.map(x => '• ' + x).join('\n');
   const l = [
     `Tipo de serviço: ${p.tipo}`,
     `Gestão de publicidade (Ads): ${p.canaisAds}, com limite de investimento sob gestão de ${p.limiteAds}`,
@@ -1468,13 +1555,13 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
       setFill(C.gold); doc.rect(0, 0, 3, 8, 'F');
       setFill(C.red);  doc.rect(0, 8, W, 1, 'F');
       setTxt(C.white); doc.setFontSize(6.5).setFont('helvetica','bold');
-      doc.text('NEXO CONSULTORIA & GROWTH  ·  GESTÃO DE TRÁFEGO & MÍDIAS SOCIAIS  ·  BARBEARIA', ML + 2, 5.8);
+      doc.text(`${CUR_BRAND.eyebrow}  ·  GESTÃO DE TRÁFEGO & MÍDIAS SOCIAIS  ·  BARBEARIA`, ML + 2, 5.8);
     }
     function bhFooter(doc, num, total) {
       setDraw(C.red); doc.setLineWidth(0.5);
       doc.line(ML, H - 12, W - ML, H - 12);
       setTxt(C.muted); doc.setFontSize(6.5).setFont('helvetica','normal');
-      doc.text('Nexo Consultoria & Growth  ·  Gestão de Mídias Sociais & Tráfego Pago  ·  Confidencial', ML, H - 7);
+      doc.text(`${CUR_BRAND.fantasia}  ·  Gestão de Mídias Sociais & Tráfego Pago  ·  Confidencial`, ML, H - 7);
       setTxt(C.navy); doc.setFontSize(7).setFont('helvetica','bold');
       doc.text(`${num} / ${total}`, W - ML, H - 7, { align: 'right' });
     }
@@ -1491,7 +1578,7 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
 
     // Title block
     setTxt(C.gold); doc.setFontSize(8).setFont('helvetica','bold');
-    doc.text('NEXO CONSULTORIA & GROWTH', ML + 8, 24);
+    doc.text(CUR_BRAND.eyebrow, ML + 8, 24);
     setTxt(C.white); doc.setFontSize(20).setFont('helvetica','bold');
     doc.text('Gestão de Tráfego &', ML + 8, 38);
     doc.text('Mídias Sociais', ML + 8, 50);
@@ -1527,13 +1614,16 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
     setTxt(C.red); doc.setFontSize(6.5).setFont('helvetica','bold');
     doc.text('CONTRATADA', cx2 + 5, cardY + 8);
     setTxt(C.white); doc.setFontSize(9).setFont('helvetica','bold');
-    doc.text('NEXO CONSULTORIA LTDA', cx2 + 5, cardY + 16);
+    const ctdLines = doc.splitTextToSize(CONTRATADA.razao, colW - 10);
+    doc.text(ctdLines, cx2 + 5, cardY + 16);
+    let cy = cardY + 16 + ctdLines.length * 4.5 + 2;
     setTxt([180, 195, 225]); doc.setFontSize(7.5).setFont('helvetica','normal');
-    doc.text('CNPJ: 51.112.136/0001-24', cx2 + 5, cardY + 23);
-    doc.text('Rep.: Pedro Henrique Martins da Silva', cx2 + 5, cardY + 29);
-    doc.text('Goiânia – GO', cx2 + 5, cardY + 35);
+    doc.text(`Nome fantasia: ${CUR_BRAND.fantasia}`, cx2 + 5, cy, { maxWidth: colW - 10 }); cy += 5.5;
+    doc.text(`CNPJ: ${CONTRATADA.cnpj}`, cx2 + 5, cy); cy += 5.5;
+    doc.text(`Rep.: ${CONTRATADA.rep}`, cx2 + 5, cy); cy += 5.5;
+    doc.text(CONTRATADA.cidade, cx2 + 5, cy);
     setTxt([27, 45, 90]); doc.setFontSize(52).setFont('helvetica','bold');
-    doc.text('N', cx2 + colW - 26, cardY + cardH - 6);
+    doc.text(CUR_BRAND.mark, cx2 + colW - 26, cardY + cardH - 6);
 
     // Payment highlight
     const planY = 165;
@@ -1602,7 +1692,7 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
       '• Suporte via WhatsApp em horário comercial', true);
 
     addSec(3, 'Prazo de Vigência',
-      `O contrato terá duração de ${cliente.duracao} (${cliente.duracaoExtenso}) meses, com início em ${dateStr} e encerramento em ${cliente.fimStr}, podendo ser renovado mediante acordo entre as partes com antecedência mínima de 30 dias.`);
+      `O contrato terá duração de ${cliente.duracao} (${cliente.duracaoExtenso}) meses, com início em ${dateStr} e encerramento em ${cliente.fimStr}, podendo ser renovado mediante acordo entre as partes com antecedência mínima de 30 dias.${cliente.renov ? ` Em caso de renovação, o valor mensal passará a ser de R$ ${cliente.renov} (${valorPorExtenso(cliente.renov)}), conforme proposta comercial aceita pela CONTRATANTE.` : ''}`);
 
     addSec(4, 'Exclusividade e Confidencialidade',
       'A CONTRATADA compromete-se a manter sigilo absoluto sobre informações estratégicas e comerciais da CONTRATANTE obtidas durante o contrato, conforme a Lei Geral de Proteção de Dados — Lei nº 13.709/2018.');
@@ -1617,21 +1707,25 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
     addSec(6, 'Valor e Forma de Pagamento',
       `6.1 ENTRADA: O 1º pagamento, no valor de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}), é devido na data de assinatura deste contrato (${dateStr}) e cobre a implementação inicial das campanhas e perfis.\n\n` +
       `6.2 DEMAIS PARCELAS: A partir do 2º pagamento, o valor mensal de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}) será cobrado com vencimento ${pgto2Dias} dias após a assinatura (${pgto2Str}), e as seguintes todo dia ${diaRec} de cada mês${diaRec > 28 ? ' (ou no último dia do mês, quando este não existir)' : ''}, totalizando ${nParc} (${cliente.duracaoExtenso}) parcelas ao longo da vigência. Cronograma: ${cronograma}.\n\n` +
-      '6.3 INADIMPLÊNCIA: O atraso implica multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.');
+      '6.3 FORMA DE PAGAMENTO: Os pagamentos serão realizados por meio de link de pagamento enviado pela CONTRATADA: o do 1º pagamento logo após a assinatura deste contrato e os demais antes de cada vencimento.\n\n' +
+      '6.4 INADIMPLÊNCIA: O atraso implica multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.');
 
     addSec(7, 'Obrigações da Contratada',
       '• Realizar as visitas mensais acordadas para gravação de conteúdo\n• Gerenciar ativamente as campanhas de tráfego pago\n• Cumprir o calendário de publicações acordado\n• Apresentar relatório mensal de resultados\n• Disponibilizar atendimento via WhatsApp em horário comercial', true);
 
     addSec(8, 'Obrigações da Contratante',
-      '• Fornecer acesso às contas de Facebook, Instagram e demais plataformas necessárias\n• Disponibilizar o estabelecimento nas datas agendadas para gravação\n• Aprovar ou solicitar revisões em até 2 (dois) dias úteis\n• Efetuar os pagamentos nos prazos acordados\n• Indicar um responsável pela comunicação com a equipe NEXO', true);
+      '• Fornecer acesso às contas de Facebook, Instagram e demais plataformas necessárias\n• Disponibilizar o estabelecimento nas datas agendadas para gravação\n• Aprovar ou solicitar revisões em até 2 (dois) dias úteis\n• Efetuar os pagamentos nos prazos acordados\n• Indicar um responsável pela comunicação com a equipe da CONTRATADA', true);
 
     addSec(9, 'Rescisão',
-      '9.1 A CONTRATANTE poderá rescindir a qualquer momento sem multa, mediante aviso escrito com 30 dias de antecedência, ficando devida apenas a parcela do último mês de serviços prestados.\n\n9.2 Sem o aviso de 30 dias, é devida a parcela equivalente a esses 30 dias de serviço como ressarcimento, sem configurar multa.\n\n9.3 A CONTRATADA poderá rescindir por inadimplência superior a 15 dias, sem ônus para a CONTRATANTE além das parcelas vencidas.\n\n9.4 O valor do 1º pagamento (implementação) não é reembolsável em nenhuma hipótese.');
+      '9.1 A CONTRATANTE poderá rescindir a qualquer momento sem multa, mediante aviso escrito com 30 dias de antecedência, ficando devida apenas a parcela do último mês de serviços prestados.\n\n9.2 Sem o aviso de 30 dias, é devida a parcela equivalente a esses 30 dias de serviço como ressarcimento, sem configurar multa.\n\n9.3 A CONTRATADA poderá rescindir por inadimplência superior a 15 dias, sem ônus para a CONTRATANTE além das parcelas vencidas.\n\n9.4 ' + (cliente.garantia ? 'Ressalvada a Garantia de Execução (cláusula 10), o' : 'O') + ' valor do 1º pagamento (implementação) não é reembolsável.');
 
-    addSec(10, 'Limitação de Responsabilidade',
-      'A CONTRATADA não se responsabiliza por resultados dependentes de fatores externos ao seu controle, como sazonalidade, mudanças de algoritmo das plataformas, crises econômicas ou inação da CONTRATANTE.');
+    let secN = 10;
+    if (cliente.garantia) addSec(secN++, 'Garantia de Execução', garantiaTexto(cliente, 10));
 
-    addSec(11, 'Foro e Legislação',
+    addSec(secN++, 'Limitação de Responsabilidade',
+      (cliente.garantia ? 'Ressalvada a Garantia de Execução prevista na cláusula 10, a' : 'A') + ' CONTRATADA não se responsabiliza por resultados dependentes de fatores externos ao seu controle, como sazonalidade, mudanças de algoritmo das plataformas, crises econômicas ou inação da CONTRATANTE.');
+
+    addSec(secN++, 'Foro e Legislação',
       'As partes elegem o foro da comarca de Goiânia – GO para dirimir quaisquer litígios, renunciando a qualquer outro foro. O presente contrato tem plena validade jurídica nos termos da Lei nº 14.063/2020.');
 
     // ── SIGNATURE BLOCK ──────────────────────────────────
@@ -1656,16 +1750,16 @@ async function gerarPDFBarbearia(cliente, pgto2Dias) {
 
     setTxt(C.ink); doc.setFontSize(8).setFont('helvetica','bold');
     doc.text(doc.splitTextToSize(cliente.razao, sc)[0], s1x, lineY + 7);
-    doc.text('NEXO CONSULTORIA LTDA', s2x, lineY + 7);
+    doc.setFontSize(7).text(doc.splitTextToSize(CONTRATADA.razao, sc)[0], s2x, lineY + 7);
 
     setTxt(C.muted); doc.setFontSize(7.2).setFont('helvetica','normal');
     doc.text(`CNPJ: ${cliente.cnpj}`, s1x, lineY + 13);
     doc.text(`Rep.: ${cliente.rep}`, s1x, lineY + 19, { maxWidth: sc });
-    doc.text('CNPJ: 51.112.136/0001-24', s2x, lineY + 13);
-    doc.text('Rep.: Pedro Henrique Martins da Silva', s2x, lineY + 19, { maxWidth: sc });
+    doc.text(`CNPJ: ${CONTRATADA.cnpj}  ·  ${CUR_BRAND.fantasia}`, s2x, lineY + 13, { maxWidth: sc });
+    doc.text(`Rep.: ${CONTRATADA.rep}`, s2x, lineY + 19, { maxWidth: sc });
 
     setTxt([170,180,200]); doc.setFontSize(6).setFont('helvetica','normal');
-    doc.text('Documento gerado eletronicamente pelo Nexo Presenter  ·  Gestão de Mídias Sociais & Tráfego Pago  ·  Nexo Consultoria & Growth', W / 2, sigY + 70, { align: 'center' });
+    doc.text(`Documento gerado eletronicamente  ·  Gestão de Mídias Sociais & Tráfego Pago  ·  ${CUR_BRAND.gerado}`, W / 2, sigY + 70, { align: 'center' });
 
     const nPages = doc.getNumberOfPages();
     for (let pg = 1; pg <= nPages; pg++) { doc.setPage(pg); bhFooter(doc, pg, nPages); }
@@ -1701,11 +1795,17 @@ function histUpdate(id, patch) { const h = histLoad(); const e = h.find(x => x.i
 
 class ZsError extends Error { constructor(m, status) { super(m); this.status = status; } }
 
-async function zs(action, params = {}) {
+const PROVIDERS = { clicksign: 'ClickSign', zapsign: 'ZapSign' };
+const fAssin = document.getElementById('f-assin');
+try { const sp = localStorage.getItem('nexo_provider'); if (sp && PROVIDERS[sp]) fAssin.value = sp; } catch (_) {}
+fAssin.addEventListener('change', () => { try { localStorage.setItem('nexo_provider', fAssin.value); } catch (_) {} });
+const getProvider = () => fAssin.value;
+
+async function signApi(provider, action, params = {}) {
   let pin = null;
   try { pin = localStorage.getItem('nexo_pin'); } catch (_) {}
   if (!pin) { pin = prompt('PIN de acesso Nexo:'); if (!pin) throw new ZsError('PIN não informado', 0); }
-  const r = await fetch('/api/zapsign', {
+  const r = await fetch(`/api/${provider}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-nexo-pin': pin },
     body: JSON.stringify({ action, ...params }),
@@ -1714,11 +1814,14 @@ async function zs(action, params = {}) {
   try { localStorage.setItem('nexo_pin', pin); } catch (_) {}
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
-    if (r.status === 402) throw new ZsError('O ZapSign exige um Plano de API ativo para criar documentos. O contrato foi salvo no histórico; envie manualmente por enquanto.', 402);
-    throw new ZsError(data.detail || data.error || data.message || data.raw || `Erro ${r.status}`, r.status);
+    if (provider === 'zapsign' && r.status === 402) throw new ZsError('O ZapSign exige um Plano de API ativo para criar documentos. O contrato foi salvo no histórico; envie manualmente por enquanto.', 402);
+    const msg = data.message || data.detail || data.error || data.raw || `Erro ${r.status}`;
+    if (/E-mail do usuário da API/i.test(msg)) throw new ZsError('falta configurar o e-mail do usuário da API no ClickSign (Configurações → API). O contrato foi salvo no histórico.', r.status);
+    throw new ZsError(msg, r.status);
   }
   return data;
 }
+const zs = (action, params) => signApi('zapsign', action, params);
 
 function splitPhone(raw) {
   let d = (raw || '').replace(/\D/g, '');
@@ -1735,6 +1838,7 @@ function collectForm() {
     pgto2: p2 ? p2.value : '45', cnpj: fCnpj.value, razao: fRazao.value.trim(), fantasia: fFanta.value.trim(),
     rep: g('f-rep'), email: g('f-email'), whats: g('f-whats'), end: fEnd.value.trim(),
     inicio: g('f-inicio'), duracao: g('f-duracao'), venc: g('f-venc'),
+    marca: g('f-marca'), renov: g('f-renov'), garantia: document.getElementById('f-garantia').checked,
   };
 }
 
@@ -1752,6 +1856,9 @@ function loadForm(f) {
   document.getElementById('f-inicio').value = f.inicio || '';
   document.getElementById('f-duracao').value = f.duracao || '12';
   document.getElementById('f-venc').value = f.venc || '';
+  document.getElementById('f-marca').value = f.marca || 'nexo';
+  document.getElementById('f-renov').value = f.renov || '';
+  document.getElementById('f-garantia').checked = !!f.garantia;
   setCnpjStatus('', '');
   validateForm();
 }
@@ -1769,7 +1876,7 @@ async function afterPDF(doc, filename, cliente) {
   const h = histLoad(); h.unshift(entry); histSave(h);
   lastContract = { base64, filename, cliente, entry, prev: editing };
   btnZsSend.disabled = false;
-  if (document.getElementById('zs-auto').checked) await enviarZapSign();
+  if (document.getElementById('zs-auto').checked) await enviarAssinatura();
 }
 
 function zsFolder(form, razao) {
@@ -1778,44 +1885,64 @@ function zsFolder(form, razao) {
   return `/Contratos Nexo/${modelo}/${cli}/`;
 }
 
-async function enviarZapSign() {
+const stripPdf = n => String(n || '').replace(/\.pdf$/i, '');
+
+async function enviarAssinatura() {
   if (!lastContract) return;
+  const provider = getProvider();
   const { base64, filename, cliente, entry, prev } = lastContract;
   const tel = splitPhone(cliente.whats);
-  if (tel.phone_number.length < 10 && !cliente.email) { showToast('Preencha WhatsApp ou e-mail do cliente para enviar.'); return; }
+  const hasPhone = tel.phone_number.length >= 10;
+  const canal = document.getElementById('f-canal').value;
+  if (!hasPhone && !cliente.email) { showToast('Preencha WhatsApp ou e-mail do cliente para enviar.'); return; }
+  if (canal === 'whatsapp' && !hasPhone) { showToast('Para enviar por WhatsApp, preencha o WhatsApp do cliente.'); return; }
+  if (canal === 'email' && !cliente.email) { showToast('Para enviar por e-mail, preencha o e-mail do cliente.'); return; }
   btnZsSend.disabled = true;
   btnZsSend.textContent = 'Enviando…';
   try {
-    const signer = { name: cliente.rep || cliente.razao, auth_mode: 'assinaturaTela' };
-    if (tel.phone_number.length >= 10) Object.assign(signer, tel, { send_automatic_whatsapp: true });
-    else signer.blank_phone = true;
-    if (cliente.email) { signer.email = cliente.email; signer.send_automatic_email = true; }
-    else signer.blank_email = true;
-    const signers = [signer];
     const nexoEmail = fNexoEmail.value.trim();
-    if (nexoEmail) signers.push({ name: 'Pedro Henrique Martins da Silva', email: nexoEmail, auth_mode: 'assinaturaTela', send_automatic_email: true, blank_phone: true });
-
-    const folder = zsFolder(entry.form, cliente.razao);
-    const res = await zs('create', { document: {
-      name: filename, base64_pdf: base64, lang: 'pt-br', signers, folder_path: folder,
-    }});
-    histUpdate(entry.id, { zsToken: res.token, sentAt: new Date().toISOString(), folder });
-    showToast('Contrato enviado para assinatura via ZapSign!');
+    if (provider === 'clicksign') {
+      const signers = [{ name: cliente.rep || cliente.razao, email: cliente.email, phone: hasPhone ? tel.phone_number : '', channel: canal }];
+      if (nexoEmail) signers.push({ name: CONTRATADA.rep, email: nexoEmail, channel: 'email' });
+      const folder = ['01 - CLIENTES', (cliente.razao || 'Sem nome').toUpperCase()];
+      const res = await signApi('clicksign', 'create', { document: {
+        name: stripPdf(filename), filename, base64_pdf: base64,
+        subject: `Contrato ${CUR_BRAND.fantasia} · ${cliente.razao}`.slice(0, 100),
+        folder, signers,
+      } });
+      histUpdate(entry.id, { provider, zsToken: res.token, docId: res.document_id, sentAt: new Date().toISOString(), folder: '/' + folder.join('/') + '/' });
+      if (res.warning) showToast(res.warning, 5000);
+      if (!res.notified) showToast('Envelope ativado, mas a notificação não saiu: use "Reenviar link" no histórico.', 6000);
+    } else {
+      const signer = { name: cliente.rep || cliente.razao, auth_mode: 'assinaturaTela' };
+      if (hasPhone) Object.assign(signer, tel, { send_automatic_whatsapp: canal === 'whatsapp' });
+      else signer.blank_phone = true;
+      if (cliente.email) { signer.email = cliente.email; signer.send_automatic_email = canal === 'email' || !hasPhone; }
+      else signer.blank_email = true;
+      const signers = [signer];
+      if (nexoEmail) signers.push({ name: CONTRATADA.rep, email: nexoEmail, auth_mode: 'assinaturaTela', send_automatic_email: true, blank_phone: true });
+      const folder = zsFolder(entry.form, cliente.razao);
+      const res = await zs('create', { document: { name: filename, base64_pdf: base64, lang: 'pt-br', signers, folder_path: folder } });
+      histUpdate(entry.id, { provider, zsToken: res.token, sentAt: new Date().toISOString(), folder });
+    }
+    showToast(`Contrato enviado para assinatura via ${PROVIDERS[provider]}!`);
 
     const oldTok = prev && prev.zsToken;
     if (oldTok && document.getElementById('cancel-old').checked) {
-      try { await zs('cancel', { token: oldTok, reason: 'Substituído por nova versão do contrato', notify: false }); showToast('Versão anterior cancelada.'); }
-      catch (e) { showToast('Nova versão enviada, mas não cancelei a anterior: ' + e.message); }
+      try {
+        await signApi(prev.provider || 'zapsign', 'cancel', { token: oldTok, document_id: prev.docId, reason: 'Substituído por nova versão do contrato', notify: false });
+        showToast('Versão anterior cancelada.');
+      } catch (e) { showToast('Nova versão enviada, mas não cancelei a anterior: ' + e.message); }
     }
     setEditing(null);
   } catch (e) {
-    showToast('ZapSign: ' + e.message);
+    showToast(`${PROVIDERS[provider]}: ${e.message}`, 7000);
   } finally {
     btnZsSend.disabled = false;
     btnZsSend.textContent = 'Enviar último contrato para assinatura';
   }
 }
-btnZsSend.addEventListener('click', enviarZapSign);
+btnZsSend.addEventListener('click', enviarAssinatura);
 
 const ST_DOC = { pending: 'Aguardando assinatura', signed: 'Assinado', recusado: 'Cancelado/Recusado', refused: 'Cancelado/Recusado' };
 const ST_SIGNER = { nao_abriu: 'não abriu', abriu: 'abriu o link', assinou: 'assinou', recusou: 'recusou', expirou: 'expirou', cancelado: 'cancelado' };
@@ -1824,8 +1951,9 @@ function fmtDate(iso) { try { return new Date(iso).toLocaleDateString('pt-BR') +
 
 function itemHTML({ title, meta, zsDoc, entry }) {
   const st = zsDoc ? zsDoc.status : 'local';
+  const prov = (zsDoc && zsDoc.provider) || (entry && entry.provider) || 'zapsign';
   const label = zsDoc ? (ST_DOC[st] || st) : 'Gerado · não enviado';
-  const sg = zsDoc ? (zsDoc.signers || []).map(s => `${esc(s.nome || s.name)}: ${esc(ST_SIGNER[s.status] || s.status)}`).join(' · ') : '';
+  const sg = zsDoc ? (zsDoc.signers || []).map(s => `${esc(s.nome || s.name)}${s.status ? ': ' + esc(ST_SIGNER[s.status] || s.status) : ''}`).join(' · ') : '';
   const link = zsDoc && (zsDoc.signers || []).find(s => s.link_para_assinar);
   const btns = [];
   if (entry) btns.push('<button data-act="edit">Editar</button>');
@@ -1836,45 +1964,52 @@ function itemHTML({ title, meta, zsDoc, entry }) {
   }
   if (zsDoc && st === 'signed' && zsDoc.signed_file) btns.push(`<a href="${esc(zsDoc.signed_file)}" target="_blank" rel="noopener"><button type="button">Baixar assinado</button></a>`);
   if (entry) btns.push('<button data-act="remove">Remover</button>');
-  return `<div class="zs-item" data-id="${esc(entry ? entry.id : '')}" data-token="${esc(zsDoc ? zsDoc.token : '')}" data-link="${esc(link ? link.link_para_assinar : '')}" data-phone="${esc((entry && entry.form && entry.form.whats) || (zsDoc && (zsDoc.signers || [])[0] && (zsDoc.signers || [])[0].telefone) || '')}" data-rep="${esc((entry && entry.form && entry.form.rep) || '')}">
+  return `<div class="zs-item" data-id="${esc(entry ? entry.id : '')}" data-provider="${esc(prov)}" data-token="${esc(zsDoc ? zsDoc.token : '')}" data-doc="${esc((entry && entry.docId) || '')}" data-link="${esc(link ? link.link_para_assinar : '')}" data-phone="${esc((entry && entry.form && entry.form.whats) || (zsDoc && (zsDoc.signers || [])[0] && (zsDoc.signers || [])[0].telefone) || '')}" data-rep="${esc((entry && entry.form && entry.form.rep) || '')}">
     <div class="zs-item-top"><span class="zs-item-name">${esc(title)}</span><span class="zs-status ${esc(st)}">${esc(label)}</span></div>
-    <div class="zs-meta">${meta}</div>${sg ? `<div class="zs-meta">${sg}</div>` : ''}
+    <div class="zs-meta">${meta}${zsDoc ? ' · ' + esc(PROVIDERS[prov] || prov) : ''}</div>${sg ? `<div class="zs-meta">${sg}</div>` : ''}
     <div class="zs-actions">${btns.join('')}</div></div>`;
 }
 
 async function listarHistorico() {
   const box = document.getElementById('zs-list');
   box.innerHTML = '<div class="btn-sub">Carregando…</div>';
-  let zsDocs = [], zsErr = '', planMsg = '';
-  try { const st = await zs('status'); if (!st.plan_active) planMsg = st.message; } catch (_) {}
-  try {
-    const data = await zs('list');
-    zsDocs = Array.isArray(data) ? data : (data.results || []);
-  } catch (e) { zsErr = e.message; }
+  const parts = [];
+  let docs = [];
+  for (const p of ['clicksign', 'zapsign']) {
+    try {
+      const st = await signApi(p, 'status');
+      const ok = p === 'zapsign' ? st.plan_active : st.ok;
+      if (!ok) parts.push(`<div class="zs-meta" style="color:#B91C1C;font-weight:600">${esc(PROVIDERS[p])}: ${esc(st.message || 'indisponível')}</div>`);
+    } catch (e) { parts.push(`<div class="zs-meta" style="color:#B91C1C;font-weight:600">${esc(PROVIDERS[p])}: ${esc(e.message)}</div>`); }
+    try {
+      const d = await signApi(p, 'list');
+      docs = docs.concat((Array.isArray(d) ? d : (d.results || [])).map(x => ({ ...x, provider: p })));
+    } catch (_) {}
+  }
 
-  const byToken = new Map(zsDocs.map(d => [d.token, d]));
-  const byName = new Map(); zsDocs.forEach(d => { if (!byName.has(d.name)) byName.set(d.name, d); });
+  const key = d => `${d.provider}:${d.token}`;
+  const byToken = new Map(docs.map(d => [key(d), d]));
+  const byName = new Map(); docs.forEach(d => { const n = stripPdf(d.name); if (!byName.has(n)) byName.set(n, d); });
   const used = new Set();
   const hist = histLoad();
-  const parts = [];
-  if (planMsg) parts.push(`<div class="zs-meta" style="color:#B91C1C;font-weight:600">${esc(planMsg)}</div>`);
-  if (zsErr) parts.push(`<div class="zs-meta">Status do ZapSign indisponível (${esc(zsErr)}). Mostrando apenas o histórico local.</div>`);
 
   if (hist.length) parts.push('<div class="zs-sec">Contratos emitidos aqui</div>');
   const match = new Map();
-  hist.forEach(e => { const z = e.zsToken && byToken.get(e.zsToken); if (z) { match.set(e.id, z); used.add(z.token); } });
-  hist.forEach(e => { if (match.has(e.id) || e.zsToken) return; const z = byName.get(e.filename); if (z && !used.has(z.token)) { match.set(e.id, z); used.add(z.token); } });
+  hist.forEach(e => { const z = e.zsToken && byToken.get(`${e.provider || 'zapsign'}:${e.zsToken}`); if (z) { match.set(e.id, z); used.add(key(z)); } });
+  hist.forEach(e => { if (match.has(e.id) || e.zsToken) return; const z = byName.get(stripPdf(e.filename)); if (z && !used.has(key(z))) { match.set(e.id, z); used.add(key(z)); } });
   hist.forEach(e => {
     const z = match.get(e.id) || null;
     const f = e.form || {};
+    const plano = (PLANOS[f.plano] && PLANOS[f.plano].nome) || f.plano || '';
+    const folder = (z && z.folder_path && z.folder_path !== '/') ? z.folder_path : (e.folder || '');
     parts.push(itemHTML({
       title: f.razao || f.fantasia || e.filename,
-      meta: `${esc(f.modelo === 'barbearia' ? 'Barbearia' : 'Growth Engine · ' + (f.plano || ''))} · R$ ${esc(f.preco)} · ${esc(fmtDate(e.createdAt))}${z && z.folder_path && z.folder_path !== '/' ? '<br>📁 ' + esc(z.folder_path) : ''}`,
+      meta: `${esc(f.modelo === 'barbearia' ? 'Barbearia' : plano)} · R$ ${esc(f.preco)} · ${esc(fmtDate(e.createdAt))}${folder ? '<br>📁 ' + esc(folder) : ''}`,
       zsDoc: z, entry: e }));
   });
 
-  const others = zsDocs.filter(d => !used.has(d.token));
-  if (others.length) parts.push('<div class="zs-sec">Outros documentos no ZapSign</div>');
+  const others = docs.filter(d => !used.has(key(d)));
+  if (others.length) parts.push('<div class="zs-sec">Outros documentos nas plataformas de assinatura</div>');
   others.forEach(d => parts.push(itemHTML({ title: d.name, meta: esc(fmtDate(d.created_at)) + (d.folder_path && d.folder_path !== '/' ? '<br>📁 ' + esc(d.folder_path) : ''), zsDoc: d, entry: null })));
 
   box.innerHTML = parts.length ? parts.join('') : '<div class="btn-sub">Nenhum contrato ainda.</div>';
@@ -1885,7 +2020,7 @@ document.getElementById('zs-list').addEventListener('click', async ev => {
   const b = ev.target.closest('button[data-act]');
   if (!b) return;
   const item = b.closest('.zs-item');
-  const { id, token, link } = item.dataset;
+  const { id, token, link, provider, doc } = item.dataset;
   const act = b.dataset.act;
   try {
     if (act === 'edit') {
@@ -1895,34 +2030,33 @@ document.getElementById('zs-list').addEventListener('click', async ev => {
       contractPanel.scrollTo({ top: 0, behavior: 'smooth' });
       showToast('Contrato carregado. Ajuste os dados e gere novamente.');
     } else if (act === 'remove') {
-      if (!confirm('Remover do histórico local? (não afeta o ZapSign)')) return;
+      if (!confirm('Remover do histórico local? (não afeta a plataforma de assinatura)')) return;
       histSave(histLoad().filter(x => x.id !== id)); listarHistorico();
     } else if (act === 'wpp') {
       const { phone, rep } = item.dataset;
       const tel = splitPhone(phone).phone_number;
-      const msg = `Olá${rep ? ', ' + rep.split(' ')[0] : ''}! Segue o contrato da Nexo Consultoria para assinatura eletrônica: ${link}`;
+      const msg = `Olá${rep ? ', ' + rep.split(' ')[0] : ''}! Segue o contrato para assinatura eletrônica: ${link}`;
       window.open(`https://wa.me/${tel.length >= 10 ? '55' + tel : ''}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
     } else if (act === 'copy') {
       await navigator.clipboard.writeText(link); showToast('Link de assinatura copiado.');
     } else if (act === 'cancel') {
       if (!confirm('Cancelar este contrato? O cliente não poderá mais assinar.')) return;
-      await zs('cancel', { token, reason: 'Contrato cancelado pela Nexo', notify: false });
+      await signApi(provider, 'cancel', { token, document_id: doc || undefined, reason: 'Contrato cancelado pela contratada', notify: false });
       showToast('Contrato cancelado.'); setTimeout(listarHistorico, 1500);
     } else if (act === 'resend') {
-      await zs('resend', { token }); showToast('Link reenviado ao cliente.');
+      await signApi(provider, 'resend', { token }); showToast('Notificação reenviada ao cliente.');
     }
-  } catch (e) { showToast('ZapSign: ' + e.message); }
+  } catch (e) { showToast(`${PROVIDERS[provider] || 'Assinatura'}: ${e.message}`, 6000); }
 });
 
 // ── VENCIMENTO AUTOMÁTICO (BARBEARIA) ─────────────────
 function syncVenc() {
   const fv = document.getElementById('f-venc');
-  if (getModelo() !== 'barbearia') { fv.readOnly = false; fv.title = ''; return; }
   const ini = document.getElementById('f-inicio').value;
   const dias = parseInt((document.querySelector('input[name="pgto2"]:checked') || {}).value || '45', 10);
   if (!ini) return;
   const d = new Date(ini + 'T00:00:00'); d.setDate(d.getDate() + dias);
-  fv.value = d.getDate(); fv.readOnly = true; fv.title = 'No modelo Barbearia o vencimento segue o dia do 2º pagamento';
+  fv.value = d.getDate(); fv.readOnly = true; fv.title = 'O vencimento mensal segue o dia do 2º pagamento';
   validateForm();
 }
 document.querySelectorAll('.model-card, .pgto2-card').forEach(c => c.addEventListener('click', () => setTimeout(syncVenc, 0)));

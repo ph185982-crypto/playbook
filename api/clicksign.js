@@ -76,8 +76,15 @@ async function createEnvelope(token, b) {
   } } });
   const docId = doc.data.id;
 
+  let autoSigner = null;
+  try { autoSigner = process.env.CLICKSIGN_AUTO_SIGNER ? JSON.parse(process.env.CLICKSIGN_AUTO_SIGNER) : null; } catch (_) {}
+
   const signers = [];
-  for (const s of b.signers || []) {
+  for (const s0 of b.signers || []) {
+    const s = { ...s0 };
+    if (autoSigner && s.email && String(s.email).toLowerCase() === String(autoSigner.email || '').toLowerCase()) {
+      Object.assign(s, { auto: true, documentation: autoSigner.documentation, birthday: autoSigner.birthday });
+    }
     const channel = s.channel === 'whatsapp' && s.phone ? 'whatsapp' : 'email';
     const attrs = {
       name: s.name, refusable: false, has_documentation: s.auto ? true : s.has_documentation !== false,

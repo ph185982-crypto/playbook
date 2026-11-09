@@ -450,8 +450,8 @@ body.laser-active #laser-canvas{pointer-events:none}
   <div class="fg" style="margin:0 0 18px">
     <label for="f-marca">Marca da contratada no contrato</label>
     <select id="f-marca">
-      <option value="nexo">Nexo Consultoria &amp; Growth</option>
       <option value="avanteza">Avanteza Consultoria e Estratégia</option>
+      <option value="nexo">Nexo Consultoria &amp; Growth</option>
     </select>
   </div>
 
@@ -1059,242 +1059,13 @@ async function gerarPDF() {
     renov:    fmtBRL(document.getElementById('f-renov').value.trim()),
     garantia: document.getElementById('f-garantia').checked,
     marca:    document.getElementById('f-marca').value,
+    modelo,
   };
-  CUR_BRAND = BRANDS[cliente.marca] || BRANDS.nexo;
+  CUR_BRAND = BRANDS[cliente.marca] || BRANDS.avanteza;
   const sched = calcCronograma(cliente.inicio, pgto2Dias, duracaoMeses);
 
   try {
-    if (modelo !== 'barbearia' && cliente.marca === 'avanteza') {
-      await gerarPDFAvanteza(cliente, sched);
-      return;
-    }
-    if (modelo === 'barbearia') {
-      await gerarPDFBarbearia(cliente, pgto2Dias);
-      return;
-    }
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-
-    const W = 210, H = 297;
-    const ML = 20, MR = 20;
-    const TW = W - ML - MR;
-    const dateStr = formatDate(cliente.inicio);
-
-    // ─ color shortcuts ─
-    const C = {
-      navy:  [13, 27, 62],
-      blue:  [27, 79, 216],
-      gold:  [200, 150, 30],
-      paper: [247, 243, 235],
-      paper2:[237, 233, 223],
-      muted: [100, 116, 135],
-      white: [255, 255, 255],
-      ink:   [22, 30, 55],
-      body:  [45, 50, 65],
-    };
-    const setFill = (c) => doc.setFillColor(...c);
-    const setTxt  = (c) => doc.setTextColor(...c);
-    const setDraw = (c) => doc.setDrawColor(...c);
-
-    // ══════════════════════════════════════════════
-    // PAGE 1 — CAPA
-    // ══════════════════════════════════════════════
-
-    // Full navy header block
-    setFill(C.navy); doc.rect(0, 0, W, 80, 'F');
-
-    // Side gold accent strip (left edge)
-    setFill(C.gold); doc.rect(0, 0, 5, 80, 'F');
-
-    // Brand eyebrow
-    setTxt(C.gold); doc.setFontSize(7).setFont('helvetica','bold');
-    doc.text(CUR_BRAND.eyebrow, ML + 2, 22);
-
-    // Main brand name
-    setTxt(C.white); doc.setFontSize(28).setFont('helvetica','bold');
-    doc.text(CUR_BRAND.title, ML + 2, 46);
-    if (CUR_BRAND.reg) { doc.setFontSize(13); doc.text('®', ML + 2 + doc.getStringUnitWidth(CUR_BRAND.title) * 28 * 0.352778 + 1, 40); }
-
-    // Tagline
-    setTxt([180, 195, 225]); doc.setFontSize(8).setFont('helvetica','normal');
-    doc.text(CUR_BRAND.tagline, ML + 2, 58);
-
-    // Thin gold bottom accent on header
-    setFill(C.gold); doc.rect(0, 80, W, 2.5, 'F');
-
-    // Document type badge (white pill on paper bg)
-    setFill(C.paper); doc.rect(ML, 92, TW, 18, 'F');
-    setFill(C.blue); doc.rect(ML, 92, 3, 18, 'F');
-    setTxt(C.navy); doc.setFontSize(11).setFont('helvetica','bold');
-    doc.text('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', ML + 9, 101);
-    setTxt(C.muted); doc.setFontSize(7.5).setFont('helvetica','normal');
-    doc.text(`Emitido em ${today()}  ·  Vigência: ${cliente.duracao} meses  ·  Início: ${dateStr}`, ML + 9, 107);
-
-    // ── PARTIES ────────────────────────────────────
-    const cardY = 118, cardH = 72, colW = (TW - 6) / 2;
-
-    // CONTRATANTE card
-    setFill(C.paper); doc.rect(ML, cardY, colW, cardH, 'F');
-    setFill(C.blue);  doc.rect(ML, cardY, colW, 1.5, 'F');
-    setTxt(C.blue); doc.setFontSize(6.5).setFont('helvetica','bold');
-    doc.text('CONTRATANTE', ML + 5, cardY + 8);
-    setTxt(C.ink); doc.setFontSize(9).setFont('helvetica','bold');
-    const razaoLines = doc.splitTextToSize(cliente.razao, colW - 10);
-    doc.text(razaoLines, ML + 5, cardY + 15);
-    const razaoH = razaoLines.length * 4.5;
-    setTxt(C.muted); doc.setFontSize(7.5).setFont('helvetica','normal');
-    let ry = cardY + 15 + razaoH + 2;
-    doc.text(`CNPJ: ${cliente.cnpj}`, ML + 5, ry); ry += 5.5;
-    if (cliente.rep)   { doc.text(`Rep.: ${cliente.rep}`, ML + 5, ry, {maxWidth: colW - 10}); ry += 5.5; }
-    if (cliente.email) { doc.text(`E-mail: ${cliente.email}`, ML + 5, ry, {maxWidth: colW - 10}); ry += 5.5; }
-    if (cliente.whats) { doc.text(`WhatsApp: ${cliente.whats}`, ML + 5, ry); }
-    if (cliente.end) {
-      setTxt(C.muted); doc.setFontSize(6.8);
-      const endLines = doc.splitTextToSize(cliente.end, colW - 10);
-      doc.text(endLines, ML + 5, cardY + cardH - 10);
-    }
-
-    // CONTRATADA card
-    const cx2 = ML + colW + 6;
-    setFill(C.navy); doc.rect(cx2, cardY, colW, cardH, 'F');
-    setFill(C.gold); doc.rect(cx2, cardY, colW, 1.5, 'F');
-    setTxt(C.gold); doc.setFontSize(6.5).setFont('helvetica','bold');
-    doc.text('CONTRATADA', cx2 + 5, cardY + 8);
-    setTxt(C.white); doc.setFontSize(9).setFont('helvetica','bold');
-    const ctdLines = doc.splitTextToSize(CONTRATADA.razao, colW - 10);
-    doc.text(ctdLines, cx2 + 5, cardY + 16);
-    let cy = cardY + 16 + ctdLines.length * 4.5 + 2;
-    setTxt([180, 195, 225]); doc.setFontSize(7.5).setFont('helvetica','normal');
-    doc.text(`Nome fantasia: ${CUR_BRAND.fantasia}`, cx2 + 5, cy, { maxWidth: colW - 10 }); cy += 5.5;
-    doc.text(`CNPJ: ${CONTRATADA.cnpj}`, cx2 + 5, cy); cy += 5.5;
-    doc.text(`Rep.: ${CONTRATADA.rep}`, cx2 + 5, cy); cy += 5.5;
-    doc.text(CONTRATADA.cidade, cx2 + 5, cy);
-    // decorative "N" watermark
-    setTxt([27, 45, 90]); doc.setFontSize(52).setFont('helvetica','bold');
-    doc.text(CUR_BRAND.mark, cx2 + colW - 26, cardY + cardH - 6);
-
-    // ── PLAN HIGHLIGHT ──────────────────────────────
-    const planY = 198;
-    setFill(C.ink); doc.rect(ML, planY, TW, 46, 'F');
-
-    // Gold top accent
-    setFill(C.gold); doc.rect(ML, planY, TW, 1.5, 'F');
-
-    // Label
-    setTxt(C.gold); doc.setFontSize(7).setFont('helvetica','bold');
-    doc.text(`PLANO CONTRATADO  ·  ${(PLANOS[cliente.plano] || PLANOS.ESCALE).tipo.toUpperCase()}`, ML + 8, planY + 10);
-
-    // Plan name big
-    setTxt(C.white); doc.setFontSize(22).setFont('helvetica','bold');
-    doc.text((PLANOS[cliente.plano] || PLANOS.ESCALE).nome, ML + 8, planY + 22);
-
-    // Price right-aligned
-    setTxt(C.gold); doc.setFontSize(16).setFont('helvetica','bold');
-    doc.text(`R$ ${cliente.preco}/mês`, W - MR - 2, planY + 22, { align: 'right' });
-
-    // Details row
-    setTxt([180, 195, 225]); doc.setFontSize(7.5).setFont('helvetica','normal');
-    doc.text(`Vigência: ${cliente.duracao} meses  ·  1º pagamento na assinatura  ·  2º em ${sched.pgto2Str}  ·  Demais: todo dia ${sched.diaRec}`, ML + 8, planY + 32);
-
-    // Validity note
-    setTxt([130, 150, 190]); doc.setFontSize(6.5);
-    doc.text('Documento com validade jurídica nos termos da Lei nº 14.063/2020', ML + 8, planY + 40);
-
-    // ══════════════════════════════════════════════
-    // PAGES 2-4 — CLÁUSULAS
-    // ══════════════════════════════════════════════
-
-    let y = 0;
-
-    // section renderer with left-accent bar
-    const addSection = (num, title, body, isList) => {
-      if (y > H - 60) { doc.addPage(); pageHeader(doc, W, ML, MR); y = 30; }
-      // Number badge
-      setFill(C.blue); doc.rect(ML, y, 7, 7, 'F');
-      setTxt(C.white); doc.setFontSize(6.5).setFont('helvetica','bold');
-      doc.text(String(num), ML + 3.5, y + 5, { align: 'center' });
-      // Title
-      setTxt(C.navy); doc.setFontSize(9).setFont('helvetica','bold');
-      doc.text(title.toUpperCase(), ML + 10, y + 5.2);
-      y += 12;
-      // Body
-      setTxt(C.body); doc.setFontSize(8.2).setFont('helvetica','normal');
-      const lines = doc.splitTextToSize(body, TW - 2);
-      // page break inside body
-      for (const ln of lines) {
-        if (y > H - 28) { doc.addPage(); pageHeader(doc, W, ML, MR); y = 30; setTxt(C.body); doc.setFontSize(8.2).setFont('helvetica','normal'); }
-        doc.text(ln, ML + 2, y);
-        y += isList ? 5.2 : 5;
-      }
-      y += 6;
-    };
-
-    // PAGE 2
-    doc.addPage(); pageHeader(doc, W, ML, MR); y = 30;
-
-    clausulasContrato(cliente, sched, dateStr).forEach((c, i) => {
-      addSection(i + 1, c.title, c.list ? c.list.map(x => '• ' + x).join('\n') : c.paras.join('\n\n'), !!c.list);
-    });
-
-    // ── SIGNATURE BLOCK ─────────────────────────────
-    let sigY = y + 6;
-    if (sigY + 74 > H - 16) { doc.addPage(); pageHeader(doc, W, ML, MR); sigY = 30; }
-
-    // Background panel
-    setFill(C.paper); doc.rect(ML, sigY, TW, 74, 'F');
-    setFill(C.blue);  doc.rect(ML, sigY, TW, 1.5, 'F');
-
-    // Location & date centered
-    setTxt(C.muted); doc.setFontSize(8).setFont('helvetica','normal');
-    doc.text(`Goiânia – GO, ${today()}`, W / 2, sigY + 10, { align: 'center' });
-
-    // Two sig columns
-    const sc = (TW - 16) / 2;
-    const s1x = ML + 4, s2x = ML + 4 + sc + 8;
-    const lineY = sigY + 42;
-
-    // Signature lines
-    setDraw(C.navy); doc.setLineWidth(0.4);
-    doc.line(s1x, lineY, s1x + sc, lineY);
-    doc.line(s2x, lineY, s2x + sc, lineY);
-
-    // Labels above lines
-    setTxt(C.blue); doc.setFontSize(6.5).setFont('helvetica','bold');
-    doc.text('CONTRATANTE', s1x, lineY - 3);
-    doc.text('CONTRATADA', s2x, lineY - 3);
-
-    // Details below lines
-    setTxt(C.ink); doc.setFontSize(8).setFont('helvetica','bold');
-    doc.text(doc.splitTextToSize(cliente.razao, sc)[0], s1x, lineY + 7);
-    doc.setFontSize(7).text(doc.splitTextToSize(CONTRATADA.razao, sc)[0], s2x, lineY + 7);
-
-    setTxt(C.muted); doc.setFontSize(7.2).setFont('helvetica','normal');
-    doc.text(`CNPJ: ${cliente.cnpj}`, s1x, lineY + 13);
-    doc.text(`Rep.: ${cliente.rep}`, s1x, lineY + 19, { maxWidth: sc });
-    doc.text(`CNPJ: ${CONTRATADA.cnpj}  ·  ${CUR_BRAND.fantasia}`, s2x, lineY + 13, { maxWidth: sc });
-    doc.text(`Rep.: ${CONTRATADA.rep}`, s2x, lineY + 19, { maxWidth: sc });
-
-    // Watermark footer note
-    setTxt([170, 180, 200]); doc.setFontSize(6).setFont('helvetica','normal');
-    doc.text(`Documento gerado eletronicamente  ·  ${CUR_BRAND.gerado}`, W / 2, sigY + 70, { align: 'center' });
-
-    const nPages = doc.getNumberOfPages();
-    for (let pg = 1; pg <= nPages; pg++) { doc.setPage(pg); pageFooter(doc, W, H, ML, pg, nPages); }
-
-    // ── SAVE ───────────────────────────────────────
-    const filename = `Contrato_${CUR_BRAND.arquivo}_${cliente.razao.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)}_${plano}.pdf`;
-    doc.save(filename);
-    btn.textContent = '✓ Contrato gerado!';
-    btn.classList.add('success');
-    showToast('Contrato PDF baixado com sucesso!');
-    await afterPDF(doc, filename, cliente);
-    setTimeout(() => {
-      btn.textContent = 'Gerar Contrato PDF';
-      btn.classList.remove('success');
-      btn.disabled = false;
-    }, 4000);
-
+    await gerarPDFAvanteza(cliente, sched);
   } catch (err) {
     console.error(err);
     btn.textContent = 'Gerar Contrato PDF';
@@ -1304,37 +1075,6 @@ async function gerarPDF() {
 }
 
 // ── PDF HELPERS ───────────────────────────────────────
-function pageHeader(doc, W, ML, MR) {
-  // Slim navy top bar
-  doc.setFillColor(13, 27, 62);
-  doc.rect(0, 0, W, 8, 'F');
-  // Gold left strip
-  doc.setFillColor(200, 150, 30);
-  doc.rect(0, 0, 3, 8, 'F');
-  // Blue bottom line
-  doc.setFillColor(27, 79, 216);
-  doc.rect(0, 8, W, 1, 'F');
-  // Brand text
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(6.5).setFont('helvetica','bold');
-  doc.text(CUR_BRAND.header, ML + 2, 5.8);
-}
-
-function pageFooter(doc, W, H, ML, num, total) {
-  // Thin rule
-  doc.setDrawColor(200, 150, 30);
-  doc.setLineWidth(0.5);
-  doc.line(ML, H - 12, W - ML, H - 12);
-  // Left: branding
-  doc.setTextColor(100, 116, 135);
-  doc.setFontSize(6.5).setFont('helvetica','normal');
-  doc.text(CUR_BRAND.footer, ML, H - 7);
-  // Right: page number
-  doc.setTextColor(13, 27, 62);
-  doc.setFontSize(7).setFont('helvetica','bold');
-  doc.text(`${num} / ${total}`, W - ML, H - 7, { align: 'right' });
-}
-
 function today() {
   const d = new Date();
   return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
@@ -1409,7 +1149,7 @@ const BRANDS = {
     header: 'AVANTEZA  ·  CONSULTORIA E ESTRATÉGIA', footer: 'Avanteza Consultoria e Estratégia  ·  Confidencial',
     mark: 'A', metodologia: 'da metodologia de trabalho da CONTRATADA', gerado: 'Avanteza Consultoria e Estratégia', arquivo: 'Avanteza' },
 };
-let CUR_BRAND = BRANDS.nexo;
+let CUR_BRAND = BRANDS.avanteza;
 
 function calcCronograma(inicio, pgto2Dias, nParc) {
   const ini = new Date(inicio + 'T00:00:00');
@@ -1482,268 +1222,6 @@ function showToast(msg, duration = 3000) {
   toast.textContent = msg;
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), duration);
-}
-
-// ── BARBEARIA CONTRACT ────────────────────────────────
-async function gerarPDFBarbearia(cliente, pgto2Dias) {
-  const btn = document.getElementById('btn-gerar');
-  try {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-
-    const W = 210, H = 297, ML = 20, MR = 20, TW = W - ML - MR;
-    const dateStr = formatDate(cliente.inicio);
-
-    const C = {
-      navy:  [13, 27, 62],  blue:  [27, 79, 216],
-      gold:  [200, 150, 30], paper: [247, 243, 235],
-      paper2:[237, 233, 223],muted: [100, 116, 135],
-      white: [255, 255, 255],ink:   [22, 30, 55],
-      body:  [45, 50, 65],   red:   [180, 30, 30],
-    };
-    const setFill = ([r,g,b]) => doc.setFillColor(r,g,b);
-    const setTxt  = ([r,g,b]) => doc.setTextColor(r,g,b);
-    const setDraw = ([r,g,b]) => doc.setDrawColor(r,g,b);
-
-    // pgto2 date
-    const pgto2Date = new Date(cliente.inicio + 'T00:00:00');
-    pgto2Date.setDate(pgto2Date.getDate() + pgto2Dias);
-    const pgto2Str = formatDate(isoLocal(pgto2Date));
-    const diaRec = pgto2Date.getDate();
-    const nParc = parseInt(cliente.duracao) || 3;
-    const ordF = ['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª','10ª','11ª','12ª','13ª','14ª','15ª','16ª','17ª','18ª','19ª','20ª','21ª','22ª','23ª','24ª'];
-    const cronograma = Array.from({ length: nParc }, (_, i) => {
-      const dt = i === 0 ? dateStr : formatDate(isoLocal(addMonthsClamp(pgto2Date, i - 1)));
-      return `${ordF[i] || (i + 1) + 'ª'} parcela: ${dt}${i === 0 ? ' (assinatura)' : ''}`;
-    }).join('; ');
-
-    // helper: header / footer
-    function bhHeader(doc) {
-      setFill(C.navy); doc.rect(0, 0, W, 8, 'F');
-      setFill(C.gold); doc.rect(0, 0, 3, 8, 'F');
-      setFill(C.red);  doc.rect(0, 8, W, 1, 'F');
-      setTxt(C.white); doc.setFontSize(6.5).setFont('helvetica','bold');
-      doc.text(`${CUR_BRAND.eyebrow}  ·  GESTÃO DE TRÁFEGO & MÍDIAS SOCIAIS  ·  BARBEARIA`, ML + 2, 5.8);
-    }
-    function bhFooter(doc, num, total) {
-      setDraw(C.red); doc.setLineWidth(0.5);
-      doc.line(ML, H - 12, W - ML, H - 12);
-      setTxt(C.muted); doc.setFontSize(6.5).setFont('helvetica','normal');
-      doc.text(`${CUR_BRAND.fantasia}  ·  Gestão de Mídias Sociais & Tráfego Pago  ·  Confidencial`, ML, H - 7);
-      setTxt(C.navy); doc.setFontSize(7).setFont('helvetica','bold');
-      doc.text(`${num} / ${total}`, W - ML, H - 7, { align: 'right' });
-    }
-
-    let y = 0;
-
-    // ══ PAGE 1 — CAPA ════════════════════════════════════
-    bhHeader(doc);
-
-    // Red top strip (barbershop accent)
-    setFill(C.red); doc.rect(0, 9, W, 2, 'F');
-    setFill(C.navy); doc.rect(0, 11, W, 75, 'F');
-    setFill(C.gold); doc.rect(0, 11, 5, 75, 'F');
-
-    // Title block
-    setTxt(C.gold); doc.setFontSize(8).setFont('helvetica','bold');
-    doc.text(CUR_BRAND.eyebrow, ML + 8, 24);
-    setTxt(C.white); doc.setFontSize(20).setFont('helvetica','bold');
-    doc.text('Gestão de Tráfego &', ML + 8, 38);
-    doc.text('Mídias Sociais', ML + 8, 50);
-    setTxt([180, 195, 220]); doc.setFontSize(8).setFont('helvetica','normal');
-    doc.text('Tráfego pago · Conteúdo orgânico · Produção de vídeos para barbearia', ML + 8, 60);
-
-    // Document badge
-    setFill(C.blue); doc.rect(ML + 8, 68, 90, 7, 'F');
-    setTxt(C.white); doc.setFontSize(6.5).setFont('helvetica','bold');
-    doc.text('CONTRATO DE PRESTAÇÃO DE SERVIÇOS  ·  MODELO BARBEARIA', ML + 11, 73.2);
-
-    // Party cards
-    const cardY = 92, cardH = 62, colW = (TW - 6) / 2;
-    // CONTRATANTE
-    setFill(C.paper); doc.rect(ML, cardY, colW, cardH, 'F');
-    setFill(C.blue);  doc.rect(ML, cardY, colW, 1.5, 'F');
-    setTxt(C.blue); doc.setFontSize(6.5).setFont('helvetica','bold');
-    doc.text('CONTRATANTE', ML + 5, cardY + 8);
-    setTxt(C.ink); doc.setFontSize(9).setFont('helvetica','bold');
-    doc.text(doc.splitTextToSize(cliente.razao, colW - 10)[0], ML + 5, cardY + 16);
-    setTxt(C.muted); doc.setFontSize(7.5).setFont('helvetica','normal');
-    doc.text(`CNPJ: ${cliente.cnpj}`, ML + 5, cardY + 23);
-    doc.text(`Rep.: ${cliente.rep}`, ML + 5, cardY + 29);
-    if (cliente.end) {
-      const endLines = doc.splitTextToSize(cliente.end, colW - 10);
-      doc.text(endLines, ML + 5, cardY + cardH - 10);
-    }
-
-    // CONTRATADA
-    const cx2 = ML + colW + 6;
-    setFill(C.navy); doc.rect(cx2, cardY, colW, cardH, 'F');
-    setFill(C.red);  doc.rect(cx2, cardY, colW, 1.5, 'F');
-    setTxt(C.red); doc.setFontSize(6.5).setFont('helvetica','bold');
-    doc.text('CONTRATADA', cx2 + 5, cardY + 8);
-    setTxt(C.white); doc.setFontSize(9).setFont('helvetica','bold');
-    const ctdLines = doc.splitTextToSize(CONTRATADA.razao, colW - 10);
-    doc.text(ctdLines, cx2 + 5, cardY + 16);
-    let cy = cardY + 16 + ctdLines.length * 4.5 + 2;
-    setTxt([180, 195, 225]); doc.setFontSize(7.5).setFont('helvetica','normal');
-    doc.text(`Nome fantasia: ${CUR_BRAND.fantasia}`, cx2 + 5, cy, { maxWidth: colW - 10 }); cy += 5.5;
-    doc.text(`CNPJ: ${CONTRATADA.cnpj}`, cx2 + 5, cy); cy += 5.5;
-    doc.text(`Rep.: ${CONTRATADA.rep}`, cx2 + 5, cy); cy += 5.5;
-    doc.text(CONTRATADA.cidade, cx2 + 5, cy);
-    setTxt([27, 45, 90]); doc.setFontSize(52).setFont('helvetica','bold');
-    doc.text(CUR_BRAND.mark, cx2 + colW - 26, cardY + cardH - 6);
-
-    // Payment highlight
-    const planY = 165;
-    setFill(C.ink); doc.rect(ML, planY, TW, 56, 'F');
-    setFill(C.red); doc.rect(ML, planY, TW, 1.5, 'F');
-    setTxt(C.red); doc.setFontSize(7).setFont('helvetica','bold');
-    doc.text('CONDIÇÕES COMERCIAIS', ML + 8, planY + 10);
-    setTxt(C.white); doc.setFontSize(16).setFont('helvetica','bold');
-    doc.text(`R$ ${cliente.preco}`, ML + 8, planY + 24);
-    setTxt([180,195,220]); doc.setFontSize(7.5).setFont('helvetica','normal');
-    doc.text('mensais', ML + 8, planY + 31);
-
-    // Payment schedule
-    setTxt(C.gold); doc.setFontSize(7).setFont('helvetica','bold');
-    const mid = ML + TW / 2 - 8;
-    doc.text('1º PAGAMENTO', mid, planY + 10);
-    doc.text('2º PAGAMENTO', mid + 48, planY + 10);
-    setTxt(C.white); doc.setFontSize(8).setFont('helvetica','bold');
-    doc.text('Na assinatura', mid, planY + 19);
-    doc.text(`${pgto2Dias} dias após`, mid + 48, planY + 19);
-    setTxt([180,195,220]); doc.setFontSize(7.2).setFont('helvetica','normal');
-    doc.text(dateStr, mid, planY + 26);
-    doc.text(pgto2Str, mid + 48, planY + 26);
-    doc.text(`Demais parcelas: todo dia ${diaRec}`, mid, planY + 34);
-
-    setTxt(C.muted); doc.setFontSize(7).setFont('helvetica','normal');
-    doc.text(`Vigência: ${cliente.duracao} meses  ·  Início: ${dateStr}  ·  Encerramento: ${cliente.fimStr}`, ML + 8, planY + 46);
-
-    // Emitted date
-    setTxt(C.muted); doc.setFontSize(6.5).setFont('helvetica','normal');
-    doc.text(`Emitido em ${today()}  ·  Vigência: ${cliente.duracao} meses  ·  Início: ${dateStr}`, ML + 8, 232);
-
-
-    // ══ PAGE 2 — ESCOPO & CLÁUSULAS ══════════════════════
-    doc.addPage(); bhHeader(doc); y = 24;
-
-    function addSec(num, title, body, isList) {
-      if (y > H - 60) { doc.addPage(); bhHeader(doc); y = 24; }
-      setFill(C.red); doc.rect(ML, y, 7, 7, 'F');
-      setTxt(C.white); doc.setFontSize(6.5).setFont('helvetica','bold');
-      doc.text(String(num), ML + 3.5, y + 5, { align: 'center' });
-      setTxt(C.navy); doc.setFontSize(9).setFont('helvetica','bold');
-      doc.text(title.toUpperCase(), ML + 10, y + 5.2);
-      y += 12;
-      setTxt(C.body); doc.setFontSize(8.2).setFont('helvetica','normal');
-      const lines = doc.splitTextToSize(body, TW - 2);
-      for (const ln of lines) {
-        if (y > H - 28) { doc.addPage(); bhHeader(doc); y = 24; setTxt(C.body); doc.setFontSize(8.2).setFont('helvetica','normal'); }
-        doc.text(ln, ML + 2, y);
-        y += isList ? 5.2 : 5;
-      }
-      y += 6;
-    }
-
-    addSec(1, 'Objeto do Contrato',
-      'O presente contrato tem por objeto a prestação de serviços de gestão de tráfego pago, gestão de mídias sociais e produção de conteúdo em vídeo pela CONTRATADA em favor da CONTRATANTE, conforme escopo detalhado na cláusula 2.');
-
-    addSec(2, 'Escopo de Serviços',
-      '• Gestão de campanhas de tráfego pago no Facebook Ads e Instagram Ads\n' +
-      '• Criação e gerenciamento de campanhas de captação de novos clientes para a barbearia\n' +
-      '• Produção de vídeos: visitas mensais ao estabelecimento para gravação de conteúdo (antes/depois, depoimentos, bastidores, promoções)\n' +
-      '• Edição e publicação dos vídeos nas mídias sociais da CONTRATANTE\n' +
-      '• Criação de peças gráficas e posts para Instagram e Facebook (até 12 posts/mês)\n' +
-      '• Gestão do feed, stories e interações básicas nas plataformas contratadas\n' +
-      '• Relatório mensal de desempenho (alcance, engajamento, leads e agendamentos)\n' +
-      '• Suporte via WhatsApp em horário comercial', true);
-
-    addSec(3, 'Prazo de Vigência',
-      `O contrato terá duração de ${cliente.duracao} (${cliente.duracaoExtenso}) meses, com início em ${dateStr} e encerramento em ${cliente.fimStr}, podendo ser renovado mediante acordo entre as partes com antecedência mínima de 30 dias.${cliente.renov ? ` Em caso de renovação, o valor mensal passará a ser de R$ ${cliente.renov} (${valorPorExtenso(cliente.renov)}), conforme proposta comercial aceita pela CONTRATANTE.` : ''}`);
-
-    addSec(4, 'Exclusividade e Confidencialidade',
-      'A CONTRATADA compromete-se a manter sigilo absoluto sobre informações estratégicas e comerciais da CONTRATANTE obtidas durante o contrato, conforme a Lei Geral de Proteção de Dados — Lei nº 13.709/2018.');
-
-    addSec(5, 'Propriedade Intelectual',
-      'Todos os materiais, vídeos, artes e conteúdos criados pela CONTRATADA durante a vigência são de propriedade da CONTRATANTE após o pagamento integral de cada competência, exceto metodologias e processos internos da CONTRATADA.');
-
-
-    // ══ PAGE 3 — PAGAMENTO, RESCISÃO & ASSINATURAS ═══════
-    doc.addPage(); bhHeader(doc); y = 24;
-
-    addSec(6, 'Valor e Forma de Pagamento',
-      `6.1 ENTRADA: O 1º pagamento, no valor de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}), é devido na data de assinatura deste contrato (${dateStr}) e cobre a implementação inicial das campanhas e perfis.\n\n` +
-      `6.2 DEMAIS PARCELAS: A partir do 2º pagamento, o valor mensal de R$ ${cliente.preco} (${valorPorExtenso(cliente.preco)}) será cobrado com vencimento ${pgto2Dias} dias após a assinatura (${pgto2Str}), e as seguintes todo dia ${diaRec} de cada mês${diaRec > 28 ? ' (ou no último dia do mês, quando este não existir)' : ''}, totalizando ${nParc} (${cliente.duracaoExtenso}) parcelas ao longo da vigência. Cronograma: ${cronograma}.\n\n` +
-      '6.3 FORMA DE PAGAMENTO: Os pagamentos serão realizados por meio de link de pagamento enviado pela CONTRATADA: o do 1º pagamento logo após a assinatura deste contrato e os demais antes de cada vencimento.\n\n' +
-      '6.4 INADIMPLÊNCIA: O atraso implica multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.');
-
-    addSec(7, 'Obrigações da Contratada',
-      '• Realizar as visitas mensais acordadas para gravação de conteúdo\n• Gerenciar ativamente as campanhas de tráfego pago\n• Cumprir o calendário de publicações acordado\n• Apresentar relatório mensal de resultados\n• Disponibilizar atendimento via WhatsApp em horário comercial', true);
-
-    addSec(8, 'Obrigações da Contratante',
-      '• Fornecer acesso às contas de Facebook, Instagram e demais plataformas necessárias\n• Disponibilizar o estabelecimento nas datas agendadas para gravação\n• Aprovar ou solicitar revisões em até 2 (dois) dias úteis\n• Efetuar os pagamentos nos prazos acordados\n• Indicar um responsável pela comunicação com a equipe da CONTRATADA', true);
-
-    addSec(9, 'Rescisão',
-      '9.1 A CONTRATANTE poderá rescindir a qualquer momento sem multa, mediante aviso escrito com 30 dias de antecedência, ficando devida apenas a parcela do último mês de serviços prestados.\n\n9.2 Sem o aviso de 30 dias, é devida a parcela equivalente a esses 30 dias de serviço como ressarcimento, sem configurar multa.\n\n9.3 A CONTRATADA poderá rescindir por inadimplência superior a 15 dias, sem ônus para a CONTRATANTE além das parcelas vencidas.\n\n9.4 ' + (cliente.garantia ? 'Ressalvada a Garantia de Execução (cláusula 10), o' : 'O') + ' valor do 1º pagamento (implementação) não é reembolsável.');
-
-    let secN = 10;
-    if (cliente.garantia) addSec(secN++, 'Garantia de Execução', garantiaTexto(cliente, 10));
-
-    addSec(secN++, 'Limitação de Responsabilidade',
-      (cliente.garantia ? 'Ressalvada a Garantia de Execução prevista na cláusula 10, a' : 'A') + ' CONTRATADA não se responsabiliza por resultados dependentes de fatores externos ao seu controle, como sazonalidade, mudanças de algoritmo das plataformas, crises econômicas ou inação da CONTRATANTE.');
-
-    addSec(secN++, 'Foro e Legislação',
-      'As partes elegem o foro da comarca de Goiânia – GO para dirimir quaisquer litígios, renunciando a qualquer outro foro. O presente contrato tem plena validade jurídica nos termos da Lei nº 14.063/2020.');
-
-    // ── SIGNATURE BLOCK ──────────────────────────────────
-    let sigY = y + 8;
-    if (sigY + 76 > H - 16) { doc.addPage(); bhHeader(doc); sigY = 30; }
-    setFill(C.paper); doc.rect(ML, sigY, TW, 76, 'F');
-    setFill(C.red);   doc.rect(ML, sigY, TW, 1.5, 'F');
-
-    setTxt(C.muted); doc.setFontSize(7).setFont('helvetica','normal');
-    doc.text(`Goiânia – GO, ${formatDate(cliente.inicio)}`, W / 2, sigY + 10, { align: 'center' });
-
-    const sc = TW / 2 - 10, s1x = ML + 4, s2x = ML + TW / 2 + 6;
-    const lineY = sigY + 40;
-
-    setDraw(C.navy); doc.setLineWidth(0.4);
-    doc.line(s1x, lineY, s1x + sc, lineY);
-    doc.line(s2x, lineY, s2x + sc, lineY);
-
-    setTxt(C.blue); doc.setFontSize(6.5).setFont('helvetica','bold');
-    doc.text('CONTRATANTE', s1x, lineY - 3);
-    doc.text('CONTRATADA', s2x, lineY - 3);
-
-    setTxt(C.ink); doc.setFontSize(8).setFont('helvetica','bold');
-    doc.text(doc.splitTextToSize(cliente.razao, sc)[0], s1x, lineY + 7);
-    doc.setFontSize(7).text(doc.splitTextToSize(CONTRATADA.razao, sc)[0], s2x, lineY + 7);
-
-    setTxt(C.muted); doc.setFontSize(7.2).setFont('helvetica','normal');
-    doc.text(`CNPJ: ${cliente.cnpj}`, s1x, lineY + 13);
-    doc.text(`Rep.: ${cliente.rep}`, s1x, lineY + 19, { maxWidth: sc });
-    doc.text(`CNPJ: ${CONTRATADA.cnpj}  ·  ${CUR_BRAND.fantasia}`, s2x, lineY + 13, { maxWidth: sc });
-    doc.text(`Rep.: ${CONTRATADA.rep}`, s2x, lineY + 19, { maxWidth: sc });
-
-    setTxt([170,180,200]); doc.setFontSize(6).setFont('helvetica','normal');
-    doc.text(`Documento gerado eletronicamente  ·  Gestão de Mídias Sociais & Tráfego Pago  ·  ${CUR_BRAND.gerado}`, W / 2, sigY + 70, { align: 'center' });
-
-    const nPages = doc.getNumberOfPages();
-    for (let pg = 1; pg <= nPages; pg++) { doc.setPage(pg); bhFooter(doc, pg, nPages); }
-
-    const fname = `Contrato_Barbearia_${cliente.razao.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)}.pdf`;
-    doc.save(fname);
-    showToast('Contrato PDF baixado com sucesso!');
-    await afterPDF(doc, fname, cliente);
-  } catch (err) {
-    console.error(err);
-    showToast('Erro ao gerar PDF. Tente novamente.');
-  } finally {
-    const btn2 = document.getElementById('btn-gerar');
-    btn2.disabled = false;
-    btn2.textContent = 'Gerar Contrato PDF';
-  }
 }
 
 // ── ZAPSIGN + HISTÓRICO ───────────────────────────────
@@ -1824,7 +1302,7 @@ function loadForm(f) {
   document.getElementById('f-inicio').value = f.inicio || '';
   document.getElementById('f-duracao').value = f.duracao || '12';
   document.getElementById('f-venc').value = f.venc || '';
-  document.getElementById('f-marca').value = f.marca || 'nexo';
+  document.getElementById('f-marca').value = f.marca || 'avanteza';
   document.getElementById('f-renov').value = f.renov || '';
   document.getElementById('f-garantia').checked = !!f.garantia;
   setCnpjStatus('', '');
@@ -2033,30 +1511,50 @@ fPreco.addEventListener('blur', () => { const f = fmtBRL(fPreco.value); if (f) f
 
 function clausulasContrato(cliente, sched, dateStr, opt = {}) {
   const P = PLANOS[cliente.plano] || PLANOS.ESCALE;
+  const bh = cliente.modelo === 'barbearia';
   const ext = valorPorExtenso(cliente.preco);
   const cron = opt.cronogramaTabela ? 'conforme o cronograma de pagamentos abaixo' : `Cronograma: ${sched.cronograma}`;
   const out = [
-    { title: 'Objeto do contrato', paras: [
+    { title: 'Objeto do contrato', paras: [bh ? 'O presente contrato tem por objeto a prestação de serviços de gestão de tráfego pago, gestão de mídias sociais e produção de conteúdo em vídeo pela CONTRATADA em favor da CONTRATANTE, conforme escopo detalhado na cláusula 2.' :
       `O presente contrato tem por objeto a prestação de serviços de consultoria e gestão de canais de vendas em marketplaces (Mercado Livre, Shopee e demais canais contratados), incluindo a gestão de publicidade paga (Ads) nesses canais, por meio ${CUR_BRAND.metodologia}, no âmbito do ${P.nome} (${P.tipo}), conforme descrito neste instrumento.`] },
-    { title: `Escopo de serviços — Plano ${cliente.plano}`, short: 'Escopo de serviços', list: scopeByPlan(cliente.plano).split('\n').map(x => x.replace(/^•\s*/, '')) },
+    { title: 'Escopo de serviços', list: bh ? [
+      'Gestão de campanhas de tráfego pago no Facebook Ads e Instagram Ads',
+      'Criação e gerenciamento de campanhas de captação de novos clientes para a barbearia',
+      'Produção de vídeos: visitas mensais ao estabelecimento para gravação de conteúdo (antes/depois, depoimentos, bastidores, promoções)',
+      'Edição e publicação dos vídeos nas mídias sociais da CONTRATANTE',
+      'Criação de peças gráficas e posts para Instagram e Facebook (até 12 posts/mês)',
+      'Gestão do feed, stories e interações básicas nas plataformas contratadas',
+      'Relatório mensal de desempenho (alcance, engajamento, leads e agendamentos)',
+      'Suporte via WhatsApp em horário comercial'] : scopeByPlan(cliente.plano).split('\n').map(x => x.replace(/^•\s*/, '')) },
     { title: 'Prazo de vigência', paras: [
       `O contrato terá duração de ${cliente.duracao} (${cliente.duracaoExtenso}) meses, com início em ${dateStr} e encerramento em ${cliente.fimStr}, podendo ser renovado mediante acordo entre as partes com antecedência mínima de 30 dias.${cliente.renov ? ` Em caso de renovação, o valor mensal passará a ser de R$ ${cliente.renov} (${valorPorExtenso(cliente.renov)}), conforme proposta comercial aceita pela CONTRATANTE.` : ''}`] },
     { title: 'Exclusividade e confidencialidade', paras: [
       'A CONTRATADA compromete-se a manter sigilo absoluto sobre todas as informações estratégicas, comerciais, financeiras e operacionais da CONTRATANTE obtidas no decorrer deste contrato, conforme a Lei Geral de Proteção de Dados — Lei nº 13.709/2018.'] },
     { title: 'Propriedade intelectual', paras: [
+      bh ? 'Todos os materiais, vídeos, artes e conteúdos criados pela CONTRATADA durante a vigência são de propriedade da CONTRATANTE após o pagamento integral de cada competência, exceto metodologias e processos internos da CONTRATADA, que permanecem de sua exclusiva propriedade intelectual.' :
       'Todos os materiais, estratégias e conteúdos criados pela CONTRATADA durante a vigência do contrato são de propriedade da CONTRATANTE após o pagamento integral de cada competência, exceto metodologias, frameworks e processos internos da CONTRATADA, que permanecem de sua exclusiva propriedade intelectual.'] },
     { key: 'pagamento', title: 'Valor e forma de pagamento', paras: [
-      `6.1 1º PAGAMENTO (ENTRADA / IMPLEMENTAÇÃO): O 1º pagamento, no valor de R$ ${cliente.preco} (${ext}), equivalente a 1 (uma) mensalidade, é devido na assinatura deste contrato (${dateStr}). Cobre a configuração de estratégias, estruturação de processos e onboarding da equipe da CONTRATADA.`,
+      `6.1 1º PAGAMENTO (ENTRADA / IMPLEMENTAÇÃO): O 1º pagamento, no valor de R$ ${cliente.preco} (${ext}), equivalente a 1 (uma) mensalidade, é devido na assinatura deste contrato (${dateStr}). ${bh ? 'Cobre a implementação inicial das campanhas e perfis.' : 'Cobre a configuração de estratégias, estruturação de processos e onboarding da equipe da CONTRATADA.'}`,
       `6.2 DEMAIS PARCELAS: O valor mensal dos serviços é de R$ ${cliente.preco} (${ext}). O 2º pagamento vence ${sched.pgto2Dias} dias após a assinatura (${sched.pgto2Str}) e os seguintes todo dia ${sched.diaRec} de cada mês${sched.diaRec > 28 ? ' (ou no último dia do mês, quando este não existir)' : ''}, totalizando ${cliente.duracao} (${cliente.duracaoExtenso}) parcelas ao longo da vigência, ${cron}.`,
       '6.3 FORMA DE PAGAMENTO: Os pagamentos serão realizados por meio de link de pagamento enviado pela CONTRATADA: o do 1º pagamento logo após a assinatura deste contrato e os demais antes de cada vencimento.',
       '6.4 INADIMPLÊNCIA: O atraso no pagamento implica cobrança de multa de 2% sobre o valor em aberto, juros de 1% ao mês e honorários advocatícios de 20% em caso de cobrança judicial.'] },
-    { title: 'Obrigações da contratada', list: [
+    { title: 'Obrigações da contratada', list: bh ? [
+      'Realizar as visitas mensais acordadas para gravação de conteúdo',
+      'Gerenciar ativamente as campanhas de tráfego pago',
+      'Cumprir o calendário de publicações acordado',
+      'Apresentar relatório mensal de resultados',
+      'Disponibilizar atendimento via WhatsApp em horário comercial'] : [
       'Alocar equipe multidisciplinar dedicada ao projeto',
       'Cumprir cronograma de entregas previamente acordado',
       'Apresentar relatórios mensais de resultados e desempenho (KPIs)',
       P.sla ? `Manter grupo de WhatsApp para atendimento, respeitando o tempo máximo de resposta (SLA) de ${P.sla}` : 'Manter canal de atendimento via WhatsApp em horário comercial',
       'Respeitar os valores e a identidade da marca da CONTRATANTE'] },
-    { title: 'Obrigações da contratante', list: [
+    { title: 'Obrigações da contratante', list: bh ? [
+      'Fornecer acesso às contas de Facebook, Instagram e demais plataformas necessárias',
+      'Disponibilizar o estabelecimento nas datas agendadas para gravação',
+      'Aprovar ou solicitar revisões em até 2 (dois) dias úteis',
+      'Efetuar os pagamentos nos prazos acordados',
+      'Indicar um responsável pela comunicação com a equipe da CONTRATADA'] : [
       'Fornecer à CONTRATADA acesso às contas dos marketplaces e plataformas de publicidade, bem como catálogo, estoque, preços e demais informações necessárias',
       `Arcar diretamente com o investimento em publicidade (Ads) nas plataformas, o qual não está incluído na mensalidade${P.limiteAds ? `, respeitado o limite de investimento sob gestão do plano contratado (${P.limiteAds})` : ', com verba definida em conjunto entre as partes'}`,
       'Aprovar ou solicitar revisões nos materiais em até 3 (três) dias úteis',
@@ -2113,6 +1611,8 @@ async function gerarPDFAvanteza(cliente, sched) {
     const D = size => doc.setFont(disp[0], disp[1]).setFontSize(size);
     const B = (size, style = 'normal') => doc.setFont('helvetica', style).setFontSize(size);
     const P = PLANOS[cliente.plano] || PLANOS.ESCALE;
+    const bh = cliente.modelo === 'barbearia';
+    const planoLabel = bh ? 'Gestão de Tráfego & Mídias Sociais · Barbearia' : P.nome;
     const dateStr = formatDate(cliente.inicio);
     const curto = iso => iso.split('-').reverse().join('/');
     const BODY = 8.8, LH = 4.6;
@@ -2152,7 +1652,7 @@ async function gerarPDFAvanteza(cliente, sched) {
     const wp = doc.getTextWidth('à prática');
     txt(K.lime); doc.text('.', ML + wp + 0.4, 127.5);
     txt(K.onBlue); B(10, 'normal');
-    doc.text(`${P.nome}  ·  ${cliente.fantasia || cliente.razao}`, ML, 139, { maxWidth: TW });
+    doc.text(`${planoLabel}  ·  ${cliente.fantasia || cliente.razao}`, ML, 139, { maxWidth: TW });
 
     // Partes
     const cy0 = 152, ch = 64, cw = (TW - 5) / 2;
@@ -2178,15 +1678,15 @@ async function gerarPDFAvanteza(cliente, sched) {
     });
 
     // Faixa de condições
-    const by = 222, bh = 27, mw = TW / 4;
-    fill(K.lime); doc.rect(ML, by, TW, bh, 'F');
+    const by = 222, bandH = 27, mw = TW / 4;
+    fill(K.lime); doc.rect(ML, by, TW, bandH, 'F');
     const metricas = [
       ['VALOR MENSAL', `R$ ${cliente.preco}`], ['VIGÊNCIA', `${cliente.duracao} meses`],
       ['1º PAGAMENTO', 'Na assinatura'], ['2º PAGAMENTO', curto(sched.itens[1] ? sched.itens[1].iso : cliente.inicio)],
     ];
     metricas.forEach(([l, v], i) => {
       const x = ML + 6 + i * mw;
-      if (i) { draw(K.ink); doc.setLineWidth(0.2); doc.line(ML + i * mw, by + 7, ML + i * mw, by + bh - 7); }
+      if (i) { draw(K.ink); doc.setLineWidth(0.2); doc.line(ML + i * mw, by + 7, ML + i * mw, by + bandH - 7); }
       txt(K.ink); B(5.8, 'bold'); spaced(l, x, by + 10, 0.35);
       D(11.5); doc.text(v, x, by + 19);
     });
@@ -2331,7 +1831,7 @@ async function gerarPDFAvanteza(cliente, sched) {
       D(8); doc.text(`${String(pg).padStart(2, '0')} / ${String(n).padStart(2, '0')}`, W - MR, H - 10.3, { align: 'right' });
     }
 
-    const fname = `Contrato_Avanteza_${cliente.razao.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)}_${cliente.plano}.pdf`;
+    const fname = `Contrato_${bh ? 'Barbearia' : CUR_BRAND.arquivo}_${cliente.razao.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)}${bh ? '' : '_' + cliente.plano}.pdf`;
     doc.save(fname);
     btn.textContent = '✓ Contrato gerado!';
     btn.classList.add('success');

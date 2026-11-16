@@ -551,6 +551,21 @@ body.laser-active #laser-canvas{pointer-events:none}
       <label for="f-renov">Valor mensal em caso de renovação (R$, opcional)</label>
       <input type="text" id="f-renov" placeholder="Ex: 2.799,99" autocomplete="off">
     </div>
+    <div class="fg" style="grid-column:1/-1">
+      <label for="f-canais">Canais de marketplace no contrato (opcional, substitui o texto padrão do plano)</label>
+      <input type="text" id="f-canais" placeholder="Ex: Shopee, Mercado Livre e TikTok Shop" autocomplete="off">
+    </div>
+    <div class="fg" style="grid-column:1/-1">
+      <label for="f-fase2">Canal em segundo momento (opcional)</label>
+      <input type="text" id="f-fase2" placeholder="Ex: iFood" autocomplete="off">
+    </div>
+  </div>
+
+  <label class="zs-opt" style="margin-top:14px"><input type="checkbox" id="f-social"> Incluir gestão de redes sociais (Instagram e TikTok)</label>
+  <div class="form-grid g3" id="social-fields" style="display:none;margin-top:10px">
+    <div class="fg"><label for="f-grav">Gravações por mês</label><input type="number" id="f-grav" value="2" min="1" max="12"></div>
+    <div class="fg"><label for="f-posts">Conteúdos por mês</label><input type="number" id="f-posts" value="14" min="1" max="60"></div>
+    <div class="fg"><label for="f-vids">Dos quais em vídeo</label><input type="number" id="f-vids" value="7" min="0" max="60"></div>
   </div>
 
   <!-- Dates -->
@@ -1060,6 +1075,12 @@ async function gerarPDF() {
     garantia: document.getElementById('f-garantia').checked,
     marca:    document.getElementById('f-marca').value,
     modelo,
+    canais:   document.getElementById('f-canais').value.trim(),
+    fase2:    document.getElementById('f-fase2').value.trim(),
+    social:   document.getElementById('f-social').checked && modelo !== 'barbearia',
+    grav:     parseInt(document.getElementById('f-grav').value) || 2,
+    posts:    parseInt(document.getElementById('f-posts').value) || 14,
+    vids:     parseInt(document.getElementById('f-vids').value) || 0,
   };
   CUR_BRAND = BRANDS[cliente.marca] || BRANDS.avanteza;
   const sched = calcCronograma(cliente.inicio, pgto2Dias, duracaoMeses);
@@ -1285,6 +1306,7 @@ function collectForm() {
     rep: g('f-rep'), email: g('f-email'), whats: g('f-whats'), end: fEnd.value.trim(),
     inicio: g('f-inicio'), duracao: g('f-duracao'), venc: g('f-venc'),
     marca: g('f-marca'), renov: g('f-renov'), garantia: document.getElementById('f-garantia').checked,
+    canais: g('f-canais'), fase2: g('f-fase2'), social: document.getElementById('f-social').checked, grav: g('f-grav'), posts: g('f-posts'), vids: g('f-vids'),
   };
 }
 
@@ -1305,6 +1327,11 @@ function loadForm(f) {
   document.getElementById('f-marca').value = f.marca || 'avanteza';
   document.getElementById('f-renov').value = f.renov || '';
   document.getElementById('f-garantia').checked = !!f.garantia;
+  document.getElementById('f-canais').value = f.canais || '';
+  document.getElementById('f-fase2').value = f.fase2 || '';
+  document.getElementById('f-social').checked = !!f.social;
+  document.getElementById('social-fields').style.display = f.social ? '' : 'none';
+  document.getElementById('f-grav').value = f.grav || '2'; document.getElementById('f-posts').value = f.posts || '14'; document.getElementById('f-vids').value = f.vids || '7';
   setCnpjStatus('', '');
   validateForm();
 }
@@ -1495,6 +1522,8 @@ document.getElementById('zs-list').addEventListener('click', async ev => {
   } catch (e) { showToast(`${PROVIDERS[provider] || 'Assinatura'}: ${e.message}`, 6000); }
 });
 
+document.getElementById('f-social').addEventListener('change', e => { document.getElementById('social-fields').style.display = e.target.checked ? '' : 'none'; });
+
 // ── VENCIMENTO AUTOMÁTICO (BARBEARIA) ─────────────────
 function syncVenc() {
   const fv = document.getElementById('f-venc');
@@ -1514,9 +1543,17 @@ function clausulasContrato(cliente, sched, dateStr, opt = {}) {
   const bh = cliente.modelo === 'barbearia';
   const ext = valorPorExtenso(cliente.preco);
   const cron = opt.cronogramaTabela ? 'conforme o cronograma de pagamentos abaixo' : `Cronograma: ${sched.cronograma}`;
+  const n2 = n => `${n} (${numExtenso(n)})`;
+  const vids = Math.min(cliente.vids || 0, cliente.posts || 0), estat = (cliente.posts || 0) - vids;
+  const canalTxt = cliente.canais ? cliente.canais + (cliente.fase2 ? `; ${cliente.fase2} em um segundo momento, mediante alinhamento entre as partes` : '') : null;
+  const social = !cliente.social ? [] : [
+    'Gestão de redes sociais nas plataformas Instagram e TikTok',
+    `Gravação de conteúdo ${cliente.grav === 1 ? '1 (uma) vez' : n2(cliente.grav).replace(/^2 \(dois\)$/, '2 (duas)') + ' vezes'} por mês`,
+    `Produção de ${n2(cliente.posts)} conteúdos por mês, sendo ${n2(vids)} em vídeo e ${n2(estat)} em posts estáticos`,
+    'Calendário de conteúdo elaborado pela CONTRATADA e submetido à aprovação da CONTRATANTE mensalmente, antes das publicações'];
   const out = [
     { title: 'Objeto do contrato', paras: [bh ? 'O presente contrato tem por objeto a prestação de serviços de gestão de tráfego pago, gestão de mídias sociais e produção de conteúdo em vídeo pela CONTRATADA em favor da CONTRATANTE, conforme escopo detalhado na cláusula 2.' :
-      `O presente contrato tem por objeto a prestação de serviços de consultoria e gestão de canais de vendas em marketplaces (Mercado Livre, Shopee e demais canais contratados), incluindo a gestão de publicidade paga (Ads) nesses canais, por meio ${CUR_BRAND.metodologia}, no âmbito do ${P.nome} (${P.tipo}), conforme descrito neste instrumento.`] },
+      `O presente contrato tem por objeto a prestação de serviços de consultoria e gestão de canais de vendas em marketplaces (${cliente.canais || 'Mercado Livre, Shopee e demais canais contratados'}), incluindo a gestão de publicidade paga (Ads) nesses canais${cliente.social ? ' e a gestão de redes sociais (Instagram e TikTok)' : ''}, por meio ${CUR_BRAND.metodologia}, no âmbito do ${P.nome} (${P.tipo}), conforme descrito neste instrumento.`] },
     { title: 'Escopo de serviços', list: bh ? [
       'Gestão de campanhas de tráfego pago no Facebook Ads e Instagram Ads',
       'Criação e gerenciamento de campanhas de captação de novos clientes para a barbearia',
@@ -1525,7 +1562,9 @@ function clausulasContrato(cliente, sched, dateStr, opt = {}) {
       'Criação de peças gráficas e posts para Instagram e Facebook (até 12 posts/mês)',
       'Gestão do feed, stories e interações básicas nas plataformas contratadas',
       'Relatório mensal de desempenho (alcance, engajamento, leads e agendamentos)',
-      'Suporte via WhatsApp em horário comercial'] : scopeByPlan(cliente.plano).split('\n').map(x => x.replace(/^•\s*/, '')) },
+      'Suporte via WhatsApp em horário comercial'] : scopeByPlan(cliente.plano).split('\n').map(x => x.replace(/^•\s*/, ''))
+        .map(x => canalTxt && /^Gestão dos canais de vendas em marketplaces/.test(x) ? `Gestão dos canais de vendas em marketplaces: ${canalTxt}` : x)
+        .concat(social) },
     { title: 'Prazo de vigência', paras: [
       `O contrato terá duração de ${cliente.duracao} (${cliente.duracaoExtenso}) meses, com início em ${dateStr} e encerramento em ${cliente.fimStr}, podendo ser renovado mediante acordo entre as partes com antecedência mínima de 30 dias.${cliente.renov ? ` Em caso de renovação, o valor mensal passará a ser de R$ ${cliente.renov} (${valorPorExtenso(cliente.renov)}), conforme proposta comercial aceita pela CONTRATANTE.` : ''}`] },
     { title: 'Exclusividade e confidencialidade', paras: [
@@ -1548,7 +1587,8 @@ function clausulasContrato(cliente, sched, dateStr, opt = {}) {
       'Cumprir cronograma de entregas previamente acordado',
       'Apresentar relatórios mensais de resultados e desempenho (KPIs)',
       P.sla ? `Manter grupo de WhatsApp para atendimento, respeitando o tempo máximo de resposta (SLA) de ${P.sla}` : 'Manter canal de atendimento via WhatsApp em horário comercial',
-      'Respeitar os valores e a identidade da marca da CONTRATANTE'] },
+      'Respeitar os valores e a identidade da marca da CONTRATANTE'].concat(cliente.social ? [
+      `Realizar as gravações de conteúdo acordadas (${cliente.grav} por mês) e elaborar, mensalmente, o calendário de conteúdo para aprovação`] : []) },
     { title: 'Obrigações da contratante', list: bh ? [
       'Fornecer acesso às contas de Facebook, Instagram e demais plataformas necessárias',
       'Disponibilizar o estabelecimento nas datas agendadas para gravação',
@@ -1560,7 +1600,8 @@ function clausulasContrato(cliente, sched, dateStr, opt = {}) {
       'Aprovar ou solicitar revisões nos materiais em até 3 (três) dias úteis',
       'Efetuar os pagamentos nos prazos acordados',
       'Indicar um ponto focal responsável pela comunicação com a equipe da CONTRATADA',
-      'Respeitar o prazo mínimo de contrato'] },
+      'Respeitar o prazo mínimo de contrato'].concat(cliente.social ? [
+      'Aprovar o calendário de conteúdo mensal no prazo combinado, fornecer acesso às contas de Instagram e TikTok e disponibilizar produtos e ambiente nas datas das gravações'] : []) },
     { title: 'Rescisão', paras: [
       '9.1 RESCISÃO PELA CONTRATANTE: A CONTRATANTE poderá rescindir este contrato a qualquer momento, sem incidência de multa ou juros, desde que notifique a CONTRATADA por escrito com antecedência mínima de 30 (trinta) dias. Neste caso, ficará devida exclusivamente a parcela do último mês de serviços prestados (equivalente aos 30 dias de atendimento em curso), sem qualquer outro encargo adicional.',
       '9.2 AUSÊNCIA DE AVISO PRÉVIO: Caso a CONTRATANTE não observe o prazo mínimo de aviso de 30 dias, fica devida a parcela correspondente aos 30 (trinta) dias de serviços que seriam prestados nesse período, a título de ressarcimento pela indisponibilização da equipe alocada, sem que isso configure multa.',
